@@ -107,19 +107,6 @@ cors:
     console.log('  Created: prompts/wake.md');
   }
 
-  // Create context directory with example files
-  if (!existsSync('context')) mkdirSync('context');
-  const exampleContextDir = join(examplesDir, 'context');
-  if (existsSync(exampleContextDir)) {
-    for (const file of readdirSync(exampleContextDir)) {
-      const dest = join('context', file);
-      if (!existsSync(dest)) {
-        copyFileSync(join(exampleContextDir, file), dest);
-      }
-    }
-    console.log('  Created: context/ (with example files)');
-  }
-
   // Create empty .mcp.json if not exists
   if (!existsSync('.mcp.json')) {
     writeFileSync('.mcp.json', JSON.stringify({ mcpServers: {} }, null, 2) + '\n');
@@ -164,8 +151,7 @@ cors:
 
   Next steps:
   1. Customize CLAUDE.md — this is your companion's personality
-  2. Add context files to context/ (optional — see docs/HOOKS.md)
-  3. Build:   npm run build
+  2. Build:   npm run build
   4. Start:   npm start       (or: pm2 start ecosystem.config.cjs)
   5. Open:    http://localhost:3002
 

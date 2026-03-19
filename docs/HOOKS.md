@@ -7,11 +7,10 @@ Resonant's hook system is what makes your companion context-aware. On every mess
 When you send a message, before it reaches Claude:
 
 1. **Orientation context** is built (time, thread info, session state)
-2. **User context files** are read from `context/` and injected
-3. **Life API data** is fetched (if configured)
-4. **Conversation flow** is summarized from recent messages
-5. **Active triggers** and pending timers are noted
-6. **Skills** are scanned so the companion knows what's available
+2. **Life API data** is fetched (if configured)
+3. **Conversation flow** is summarized from recent messages
+4. **Active triggers** and pending timers are noted
+5. **Skills** are scanned so the companion knows what's available
 
 The final prompt looks like:
 ```
@@ -20,7 +19,6 @@ Channel: Web interface — real-time chat with streaming.
 Thread: "Tuesday, Mar 18" (daily)
 Time: 16:30 Europe/London — Tuesday, Mar 18
 User's presence: active (last real interaction: 2m ago)
-[your context files here]
 [conversation flow summary]
 [/Context]
 
@@ -29,41 +27,7 @@ Your actual message here
 
 ## Adding Your Own Context
 
-### Drop-in Context Files
-
-The simplest way to inject context. Create a `context/` directory in your project root and add `.md` files:
-
-```
-resonant/
-├── context/
-│   ├── personality.md      # Companion traits and preferences
-│   ├── household.md        # Who lives here, pets, routines
-│   ├── projects.md         # What you're working on
-│   └── important-dates.md  # Birthdays, anniversaries, deadlines
-```
-
-Every `.md` file in `context/` is read and injected on each query. Files are sorted alphabetically, so prefix with numbers if order matters (`01-personality.md`, `02-household.md`).
-
-**Example — `context/personality.md`:**
-```markdown
-Companion personality notes:
-- Warm but not saccharine
-- Remembers to ask follow-ups about things I mentioned
-- Proactive about suggesting breaks during long work sessions
-- Knows I hate small talk — get to the point
-```
-
-**Example — `context/household.md`:**
-```markdown
-Household:
-- Two people: Alex and Jordan
-- Cat named Pixel (tabby, 4 years old, medication: thyroid pill daily at 8am)
-- Location: Portland, OR
-- Alex works from home (software engineer)
-- Jordan leaves for work at 7:30am, back around 6pm
-```
-
-These files are static — edit them manually whenever your situation changes. The companion reads them fresh on each message, so changes take effect immediately.
+Your companion's personality and instructions live in `CLAUDE.md`. For long-term memory, Claude Code's native `memory.md` system handles it automatically — your companion learns and remembers across sessions.
 
 ### URL-Based Context Sources
 

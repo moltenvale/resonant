@@ -1017,25 +1017,6 @@ export async function buildOrientationContext(ctx: HookContext, includeStatic = 
     }
   }
 
-  // User context files — drop .md files in context/ for automatic injection
-  try {
-    const contextDir = join(config.agent.cwd, 'context');
-    if (existsSync(contextDir)) {
-      const contextFiles = readdirSync(contextDir)
-        .filter(f => f.endsWith('.md'))
-        .sort();
-      for (const file of contextFiles) {
-        try {
-          const content = readFileSync(join(contextDir, file), 'utf-8').trim();
-          if (content) {
-            const label = basename(file, '.md').replace(/[-_]/g, ' ');
-            parts.push(`[${label}]\n${content}`);
-          }
-        } catch {}
-      }
-    }
-  } catch {}
-
   // Recent reactions — so companion sees user's reactions on each interaction
   try {
     const recentMsgs = getMessages({ threadId: ctx.threadId, limit: 20 });

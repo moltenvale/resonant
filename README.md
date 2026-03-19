@@ -15,7 +15,7 @@ Most AI chat apps are stateless wrappers around an API. Resonant is a **persiste
 
 - **Maintains sessions** — conversation threads with daily rotation and named threads, session continuity across restarts
 - **Reaches out on its own** — configurable orchestrator with morning/midday/evening wake-ups, failsafe check-ins when you've been away
-- **Understands context** — hooks system injects time awareness, conversation flow, emotional markers, presence state, and your custom context files into every interaction
+- **Understands context** — hooks system injects time awareness, conversation flow, emotional markers, and presence state into every interaction. Claude Code's native memory system handles long-term recall
 - **Lives on multiple channels** — web UI, Discord, Telegram, voice (ElevenLabs TTS + Groq transcription)
 - **Runs on your machine** — no cloud dependency beyond your Claude Code subscription. SQLite database, local files, your data stays yours
 
@@ -73,18 +73,11 @@ orchestrator:
 
 Full reference: [examples/resonant.yaml](examples/resonant.yaml)
 
-### Context Injection
+### Context & Memory
 
-Drop `.md` files in `context/` and they're automatically injected into every conversation:
+Your companion's personality lives in `CLAUDE.md`. Long-term memory uses Claude Code's native `memory.md` system — your companion learns and remembers automatically across sessions.
 
-```
-context/
-├── personality.md      # Companion traits
-├── household.md        # Who lives here, pets, routines
-└── projects.md         # What you're working on
-```
-
-See [docs/HOOKS.md](docs/HOOKS.md) for the full context injection system.
+The hooks system injects real-time context into every message: current time, conversation flow, emotional markers, presence state, and more. See [docs/HOOKS.md](docs/HOOKS.md) for details.
 
 ### Themes
 
@@ -147,7 +140,6 @@ resonant/
 │   ├── resonant.yaml    # Full config reference
 │   ├── CLAUDE.md        # Starter companion personality
 │   ├── wake-prompts.md  # Orchestrator prompt templates
-│   ├── context/         # Example context files
 │   └── themes/          # CSS theme examples
 ├── docs/
 │   └── HOOKS.md         # Context injection documentation

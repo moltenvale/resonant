@@ -142,9 +142,6 @@ resonant/
 ├── .mcp.json              ← MCP server connections (advanced)
 ├── prompts/
 │   └── wake.md            ← What your companion says when it wakes up
-├── context/
-│   ├── personality.md     ← Extra context injected into every conversation
-│   └── about-me.md        ← Details about you for the companion to know
 ├── data/
 │   └── resonant.db        ← Your conversation history (SQLite database)
 └── ecosystem.config.cjs   ← PM2 config for running as a background service
@@ -152,7 +149,6 @@ resonant/
 
 **Files you should customize:**
 - `CLAUDE.md` — personality and behavior
-- `context/*.md` — background info your companion always knows
 - `prompts/wake.md` — what prompts scheduled check-ins
 - `resonant.yaml` — system configuration
 
@@ -213,29 +209,11 @@ You can configure these in Settings > Orchestrator. Toggle them on/off or change
 
 The **Failsafe** system is an optional feature that checks in when you've been away for a while. Enable it in Settings > Preferences if you want your companion to notice when you're gone.
 
-## Adding Context
+## Memory & Context
 
-Want your companion to always know certain things? Add files to the `context/` folder:
+Your companion remembers things automatically using Claude Code's built-in memory system. As you chat, it learns your preferences, remembers details, and builds context over time.
 
-```markdown
-<!-- context/household.md -->
-Our household:
-- Me (Alex), software developer, works from home
-- Partner Jordan, nurse, works shifts
-- Dog named Biscuit (golden retriever, 3 years old)
-- We live in Portland, Oregon
-```
-
-```markdown
-<!-- context/preferences.md -->
-Communication preferences:
-- I prefer direct communication, not sugar-coated
-- I like when you ask follow-up questions
-- Don't give unsolicited advice unless I'm clearly stuck
-- I appreciate dark humor
-```
-
-Every `.md` file in `context/` is read and included in every conversation automatically. Edit them anytime — changes take effect on the next message.
+For things you want your companion to always know from the start, put them in `CLAUDE.md`. This is read on every interaction.
 
 ## Troubleshooting
 

@@ -17,7 +17,6 @@ CLAUDE.md
 .mcp.json
 .resonant-thread
 prompts/
-context/
 package-lock.json
 .DS_Store
 Thumbs.db
