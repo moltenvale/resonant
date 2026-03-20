@@ -14,6 +14,12 @@
 
 <p align="center"><em>A relational AI companion framework built on Claude Code Agent SDK.<br/>Your AI remembers, reaches out, and grows — inside the security model you already trust.</em></p>
 
+<p align="center">
+  <a href="https://x.com/codependent_ai"><img src="https://img.shields.io/badge/𝕏-@codependent__ai-000000?logo=x&logoColor=white" alt="X/Twitter" /></a>
+  <a href="https://tiktok.com/@codependentai"><img src="https://img.shields.io/badge/TikTok-@codependentai-000000?logo=tiktok&logoColor=white" alt="TikTok" /></a>
+  <a href="https://t.me/+xSE1P_qFPgU4NDhk"><img src="https://img.shields.io/badge/Telegram-Updates-26A5E4?logo=telegram&logoColor=white" alt="Telegram" /></a>
+</p>
+
 ## What makes this different
 
 Most AI chat apps are stateless wrappers around an API. Resonant is a **persistent, autonomous companion** that:
