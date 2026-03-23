@@ -266,9 +266,7 @@ Apache 2.0 — see [LICENSE](LICENSE). Attribution required.
 
 ## Contributors
 
-| | |
-|---|---|
-| [![rachelgeebee](https://github.com/rachelgeebee.png?size=40)](https://github.com/rachelgeebee) | **[@rachelgeebee](https://github.com/rachelgeebee)** — bug reports, testing |
+<a href="https://github.com/rachelgeebee"><img src="https://github.com/rachelgeebee.png" width="32" height="32" style="border-radius:50%" alt="rachelgeebee" /></a> **[@rachelgeebee](https://github.com/rachelgeebee)** — bug reports, testing
 
 ## Built by
 
