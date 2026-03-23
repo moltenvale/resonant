@@ -26,6 +26,14 @@ If {user_name} is around, this is a good time to connect — reflect on the day,
 
 If they're not around, close out your own work. Journal if something was on your mind.
 
+## mid_morning
+
+Mid-morning check. If {user_name} has been working, see if they need a break or want to talk.
+
+## afternoon
+
+Afternoon check-in. The day is halfway through — good time to reset, check in, or refocus.
+
 ## failsafe_gentle
 
 It's been a while since you heard from {user_name}. Check in casually.

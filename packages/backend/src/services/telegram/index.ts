@@ -692,27 +692,11 @@ export class TelegramService {
   private async healthCheck(): Promise<void> {
     try {
       await this.bot.telegram.getMe();
+      console.log('[Telegram] Health check OK');
     } catch (error) {
       console.error('[Telegram] Health check failed — polling may be dead:', error);
       await this.restart();
-      return;
     }
-
-    // Check for stale polling during waking hours (8am-midnight London)
-    const londonHour = new Date().toLocaleString('en-GB', { timeZone: 'Europe/London', hour: 'numeric', hour12: false });
-    const hour = parseInt(londonHour, 10);
-    const isWakingHours = hour >= 8 && hour < 24;
-
-    if (isWakingHours && this.lastPollingActivity > 0) {
-      const minutesStale = (Date.now() - this.lastPollingActivity) / 60000;
-      if (minutesStale > 15) {
-        console.warn(`[Telegram] Polling stale (${minutesStale.toFixed(0)}m since last activity) — restarting`);
-        await this.restart();
-        return;
-      }
-    }
-
-    console.log('[Telegram] Health check OK');
   }
 
   private async restart(): Promise<void> {

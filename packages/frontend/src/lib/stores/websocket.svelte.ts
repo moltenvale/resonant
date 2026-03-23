@@ -764,6 +764,12 @@ export function sendCanvasCreate(title: string, contentType: 'markdown' | 'code'
 }
 export function sendCanvasUpdate(canvasId: string, content: string) {
   send({ type: 'canvas_update', canvasId, content });
+  // Optimistically update local store (server broadcasts to others via broadcastExcept)
+  canvases = canvases.map(c =>
+    c.id === canvasId
+      ? { ...c, content, updated_at: new Date().toISOString() }
+      : c
+  );
 }
 export function sendCanvasUpdateTitle(canvasId: string, title: string) {
   send({ type: 'canvas_update_title', canvasId, title });

@@ -70,16 +70,7 @@ function olog(message: string): void {
 
 const WAKE_PROMPT_PREFIX = `Follow your system prompt.`;
 
-interface WakePrompts {
-  morning: string;
-  midday: string;
-  evening: string;
-  failsafe_gentle: string;
-  failsafe_concerned: string;
-  failsafe_emergency: string;
-}
-
-function getDefaultWakePrompts(userName: string): WakePrompts {
+function getDefaultWakePrompts(userName: string): Record<string, string> {
   return {
     morning: `Good morning. Orient yourself, check in with ${userName}.`,
     midday: `Afternoon check-in. How is ${userName} doing?`,
@@ -90,7 +81,7 @@ function getDefaultWakePrompts(userName: string): WakePrompts {
   };
 }
 
-function parseWakePromptsFile(filePath: string, userName: string): WakePrompts {
+function parseWakePromptsFile(filePath: string, userName: string): Record<string, string> {
   const defaults = getDefaultWakePrompts(userName);
 
   if (!existsSync(filePath)) {
@@ -107,7 +98,6 @@ function parseWakePromptsFile(filePath: string, userName: string): WakePrompts {
     for (const line of raw.split('\n')) {
       const sectionMatch = line.match(/^##\s+(\w+)/);
       if (sectionMatch) {
-        // Save previous section
         if (currentSection) {
           sections[currentSection] = lines.join('\n').trim();
         }
@@ -117,19 +107,12 @@ function parseWakePromptsFile(filePath: string, userName: string): WakePrompts {
         lines.push(line);
       }
     }
-    // Save last section
     if (currentSection) {
       sections[currentSection] = lines.join('\n').trim();
     }
 
-    return {
-      morning: sections['morning'] || defaults.morning,
-      midday: sections['midday'] || defaults.midday,
-      evening: sections['evening'] || defaults.evening,
-      failsafe_gentle: sections['failsafe_gentle'] || defaults.failsafe_gentle,
-      failsafe_concerned: sections['failsafe_concerned'] || defaults.failsafe_concerned,
-      failsafe_emergency: sections['failsafe_emergency'] || defaults.failsafe_emergency,
-    };
+    // Merge: defaults first, then all parsed sections (including custom ones)
+    return { ...defaults, ...sections };
 
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -203,14 +186,10 @@ export class Orchestrator {
 
     // Load wake prompts from file or use defaults
     const loadedPrompts = parseWakePromptsFile(config.orchestrator.wake_prompts_path, userName);
-    this.wakePrompts = {
-      morning: `${WAKE_PROMPT_PREFIX}\n\n${loadedPrompts.morning}`,
-      midday: `${WAKE_PROMPT_PREFIX}\n\n${loadedPrompts.midday}`,
-      evening: `${WAKE_PROMPT_PREFIX}\n\n${loadedPrompts.evening}`,
-      failsafe_gentle: `${WAKE_PROMPT_PREFIX}\n\n${loadedPrompts.failsafe_gentle}`,
-      failsafe_concerned: `${WAKE_PROMPT_PREFIX}\n\n${loadedPrompts.failsafe_concerned}`,
-      failsafe_emergency: `${WAKE_PROMPT_PREFIX}\n\n${loadedPrompts.failsafe_emergency}`,
-    };
+    this.wakePrompts = {};
+    for (const [key, prompt] of Object.entries(loadedPrompts)) {
+      this.wakePrompts[key] = `${WAKE_PROMPT_PREFIX}\n\n${prompt}`;
+    }
 
     // Load failsafe config from DB, falling back to yaml config, then defaults
     this.failsafeEnabled = getConfigBool('failsafe.enabled', config.orchestrator.failsafe.enabled);
@@ -218,14 +197,32 @@ export class Orchestrator {
     this.failsafeConcerned = getConfigNumber('failsafe.concerned', config.orchestrator.failsafe.concerned_minutes || DEFAULT_FAILSAFE_CONCERNED);
     this.failsafeEmergency = getConfigNumber('failsafe.emergency', config.orchestrator.failsafe.emergency_minutes || DEFAULT_FAILSAFE_EMERGENCY);
 
-    // Apply any schedule overrides from config
-    const taskDefs = DEFAULT_TASKS.map(def => {
+    // Apply any schedule overrides from config + register custom wake types
+    const defaultWakeTypes = new Set(DEFAULT_TASKS.map(d => d.wakeType));
+    const taskDefs: TaskDefinition[] = DEFAULT_TASKS.map(def => {
       const overrideCron = config.orchestrator.schedules[def.wakeType];
       if (overrideCron) {
         return { ...def, cronExpr: overrideCron };
       }
       return def;
     });
+
+    // Add custom schedule entries not in DEFAULT_TASKS
+    for (const [wakeType, cronExpr] of Object.entries(config.orchestrator.schedules)) {
+      if (defaultWakeTypes.has(wakeType)) continue; // already handled above
+      const label = wakeType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      taskDefs.push({
+        wakeType,
+        label,
+        cronExpr,
+        category: 'checkin',
+        conditional: true,
+      });
+      // Ensure a wake prompt exists for this custom type
+      if (!this.wakePrompts[wakeType]) {
+        this.wakePrompts[wakeType] = `${WAKE_PROMPT_PREFIX}\n\nScheduled check-in (${label}).`;
+      }
+    }
 
     // Register all scheduled tasks
     for (const def of taskDefs) {
@@ -276,7 +273,8 @@ export class Orchestrator {
     }, 60 * 1000);
 
     olog('All schedules registered');
-    olog('Check-ins: 8:00am, 1:00pm, 9:00pm');
+    const checkinNames = taskDefs.map(d => d.wakeType).join(', ');
+    olog(`Check-ins: ${checkinNames}`);
     olog(`Failsafe: ${this.failsafeEnabled ? 'every 15 minutes' : 'DISABLED'}`);
     olog(`Failsafe thresholds: gentle=${this.failsafeGentle}m, concerned=${this.failsafeConcerned}m, emergency=${this.failsafeEmergency}m`);
     olog('Timers + Triggers: polling every 60s');
