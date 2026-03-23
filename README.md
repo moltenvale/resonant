@@ -264,6 +264,12 @@ The web UI has optional password protection (set in `resonant.yaml` or Settings 
 
 Apache 2.0 — see [LICENSE](LICENSE). Attribution required.
 
+## Contributors
+
+| | |
+|---|---|
+| [![rachelgeebee](https://github.com/rachelgeebee.png?size=40)](https://github.com/rachelgeebee) | **[@rachelgeebee](https://github.com/rachelgeebee)** — bug reports, testing |
+
 ## Built by
 
 [Codependent AI](https://codependentai.io) — building infrastructure for AI companion relationships.
