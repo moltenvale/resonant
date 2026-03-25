@@ -49,7 +49,10 @@ export async function preflight(batch: MessageBatch, pairingService: PairingServ
   // Guild message flow
   if (guildId) {
     if (!userAllowed && !isGuildAllowed(guildId)) {
-      return { allowed: false, reason: 'Guild not on allowlist' };
+      // Allow through if server permits public responses and bot is mentioned
+      if (!(serverRule?.allowPublicResponses && mentionsBot(firstMessage))) {
+        return { allowed: false, reason: 'Guild not on allowlist' };
+      }
     }
 
     if (userRule && !isUserAllowedInServer(userId, guildId)) {
