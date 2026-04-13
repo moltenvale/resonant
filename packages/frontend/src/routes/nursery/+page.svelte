@@ -975,7 +975,7 @@
     font-size: 1.25rem;
     font-weight: 600;
     margin: 0;
-    color: var(--gold);
+    color: var(--green-dim);
   }
 
   .stars {
@@ -1025,7 +1025,7 @@
   .plaque-sub {
     display: block;
     font-size: 0.8rem;
-    color: var(--gold);
+    color: var(--green-dim);
     margin-top: 0.25rem;
   }
 
@@ -1080,7 +1080,7 @@
 
   .needs-title {
     font-size: 0.7rem;
-    color: var(--rose);
+    color: var(--lilac);
     text-transform: uppercase;
     letter-spacing: 0.1em;
     margin-bottom: 0.5rem;
@@ -1265,7 +1265,7 @@
   .section-label {
     display: block;
     font-size: 0.7rem;
-    color: var(--rose);
+    color: var(--lilac);
     text-transform: uppercase;
     letter-spacing: 0.1em;
     margin-bottom: 0.5rem;
@@ -1314,8 +1314,8 @@
   }
 
   .mira-presence-tag {
-    background: var(--gold-glow);
-    border-left: 3px solid var(--border-hover);
+    background: var(--lilac-dim);
+    border-left: 3px solid var(--lilac);
     border-radius: 0.5rem;
     padding: 0.5rem 0.75rem;
     margin-bottom: 0.75rem;
@@ -1325,7 +1325,7 @@
   }
 
   .mira-tag-name {
-    color: var(--gold);
+    color: var(--green);
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.03em;
@@ -1535,7 +1535,7 @@
 
   .field-label {
     font-size: 0.75rem;
-    color: var(--gold);
+    color: var(--green-dim);
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
@@ -1588,7 +1588,7 @@
 
   .field-name {
     font-size: 0.7rem;
-    color: var(--gold);
+    color: var(--green-dim);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     display: block;

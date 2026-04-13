@@ -882,7 +882,7 @@
     font-size: 1.25rem;
     font-weight: 600;
     margin: 0;
-    color: var(--gold);
+    color: var(--green);
   }
 
   .back-link {
@@ -1004,7 +1004,7 @@
   .card-label {
     font-weight: 500;
     font-size: 0.85rem;
-    color: var(--gold);
+    color: var(--lilac);
   }
 
   /* Compact toggle rows */

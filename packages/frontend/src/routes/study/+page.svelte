@@ -441,7 +441,7 @@
     font-size: 1.25rem;
     font-weight: 600;
     margin: 0;
-    color: var(--gold);
+    color: var(--rose);
   }
 
   .header-sub {
@@ -478,7 +478,7 @@
 
   .thread-label {
     font-size: 0.65rem;
-    color: var(--gold);
+    color: var(--lilac);
     text-transform: uppercase;
     letter-spacing: 0.15em;
   }
@@ -553,7 +553,7 @@
 
   .entry-from {
     font-size: 0.8rem;
-    color: var(--gold);
+    color: var(--green);
     font-weight: 500;
     text-transform: capitalize;
   }
@@ -605,7 +605,7 @@
 
   .fox-current {
     font-size: 0.7rem;
-    color: var(--rose);
+    color: var(--lilac);
     display: block;
     margin-bottom: 0.35rem;
   }

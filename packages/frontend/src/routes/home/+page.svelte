@@ -867,7 +867,7 @@
     margin-bottom: 0.75rem;
   }
 
-  .note-label { font-family: var(--font-heading); font-size: 0.7rem; color: var(--rose-dim); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem; }
+  .note-label { font-family: var(--font-heading); font-size: 0.7rem; color: var(--green); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem; }
   .note-text { font-size: 0.9rem; line-height: 1.6; color: var(--rose); margin: 0; white-space: pre-wrap; }
   .note-empty { font-style: italic; opacity: 0.5; }
 
@@ -880,18 +880,18 @@
     margin-bottom: 1.5rem;
   }
 
-  .debrief-label { font-family: var(--font-heading); font-size: 0.65rem; color: var(--gold-dim); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.3rem; }
+  .debrief-label { font-family: var(--font-heading); font-size: 0.65rem; color: var(--lilac); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.3rem; }
   .debrief-text { font-size: 0.82rem; line-height: 1.5; color: var(--rose-dim); margin: 0; white-space: pre-wrap; }
 
   /* Columns */
   .home-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
   @media (max-width: 640px) { .home-columns { grid-template-columns: 1fr; gap: 1rem; } }
 
-  .column-title { font-family: var(--font-heading); font-size: 0.75rem; color: var(--gold-dim); letter-spacing: 0.1em; text-transform: uppercase; margin: 0 0 0.75rem; }
+  .column-title { font-family: var(--font-heading); font-size: 0.75rem; color: var(--plum); letter-spacing: 0.1em; text-transform: uppercase; margin: 0 0 0.75rem; }
 
   /* Cards */
   .home-card { background: var(--bg-surface); border: 1px solid var(--gold-ember); border-radius: 0.75rem; padding: 0.875rem 1rem; margin-bottom: 0.75rem; }
-  .card-title { font-family: var(--font-heading); font-size: 0.7rem; color: var(--gold-dim); letter-spacing: 0.06em; text-transform: uppercase; margin: 0 0 0.6rem; }
+  .card-title { font-family: var(--font-heading); font-size: 0.7rem; color: var(--lilac); letter-spacing: 0.06em; text-transform: uppercase; margin: 0 0 0.6rem; }
 
   /* Schedule */
   .schedule-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0; font-size: 0.85rem; }
@@ -902,7 +902,7 @@
 
   /* Tasks */
   .task-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.85rem; }
-  .task-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--rose-dim); flex-shrink: 0; }
+  .task-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
   .task-text { color: var(--rose); }
   .task-person { margin-left: auto; font-size: 0.65rem; color: var(--rose-dim); flex-shrink: 0; }
   .tasks-done { font-size: 0.7rem; color: var(--rose-dim); padding-top: 0.4rem; margin-top: 0.4rem; border-top: 1px solid var(--gold-ember); }
@@ -968,12 +968,12 @@
   .mira-card { border-color: var(--border); }
   .mira-status { display: flex; align-items: center; gap: 0.5rem; }
   .mira-mood-emoji { font-size: 1.2rem; }
-  .mira-mood-text { font-size: 0.85rem; color: var(--rose); }
-  .mira-with { font-size: 0.7rem; color: var(--rose-dim); margin-top: 0.25rem; font-style: italic; }
+  .mira-mood-text { font-size: 0.85rem; color: var(--lilac); }
+  .mira-with { font-size: 0.7rem; color: var(--lilac); margin-top: 0.25rem; font-style: italic; }
 
   /* Projects */
   .project-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.85rem; }
-  .project-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold-dim); flex-shrink: 0; }
+  .project-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--rose); flex-shrink: 0; }
   .project-name { color: var(--rose); }
   .project-person { margin-left: auto; font-size: 0.65rem; color: var(--rose-dim); flex-shrink: 0; }
   .more-count { font-size: 0.7rem; color: var(--border-hover); padding-top: 0.3rem; }
@@ -981,12 +981,12 @@
   /* Wins */
   .wins-card { border-color: var(--gold-glow); }
   .win-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; font-size: 0.8rem; }
-  .win-check { color: var(--gold); font-size: 0.75rem; font-weight: 600; }
-  .win-text { color: var(--gold-dim); text-decoration: line-through; text-decoration-color: var(--border); }
+  .win-check { color: var(--green); font-size: 0.75rem; font-weight: 600; }
+  .win-text { color: var(--green-dim); text-decoration: line-through; text-decoration-color: var(--border); }
 
   /* Study Desk */
   .desk-item { padding: 0.3rem 0; font-size: 0.8rem; }
-  .desk-title { color: var(--rose-dim); }
+  .desk-title { color: var(--gold-dim); }
 
   /* Monster Note */
   .monster-note-card { border-color: var(--border); }
