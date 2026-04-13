@@ -22,6 +22,13 @@
   --accent-hover: var(--gold-bright);
   --accent-muted: var(--gold-dim);
 
+  /* Secondary accent — warm contrast to the cool teal */
+  --rose: #d4a0a0;
+  --rose-bright: #e0b4b4;
+  --rose-dim: #b88a8a;
+  --rose-glow: rgba(212, 160, 160, 0.1);
+  --rose-ember: rgba(212, 160, 160, 0.06);
+
   /* Messages — neutral, no per-role tinting */
   --simon-bg: transparent;
   --simon-border: transparent;
@@ -108,7 +115,6 @@ html {
   font-size: 15px;
   -webkit-text-size-adjust: 100%;
   overflow-x: hidden;
-  overflow-y: hidden;
 }
 
 body {
@@ -119,7 +125,7 @@ body {
   line-height: 1.6;
   letter-spacing: 0;
   min-height: 100dvh;
-  overflow: hidden;
+  overflow-x: hidden;
   touch-action: manipulation;
   overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;

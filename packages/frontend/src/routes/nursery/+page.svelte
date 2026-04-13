@@ -946,7 +946,7 @@
     left: var(--left);
     width: 4px;
     height: 4px;
-    background: var(--gold-bright);
+    background: var(--rose);
     border-radius: 50%;
     box-shadow: 0 0 6px 2px var(--gold-glow), 0 0 12px 4px var(--gold-ember);
     animation: twinkle 3s ease-in-out infinite;
@@ -980,7 +980,7 @@
 
   .stars {
     font-size: 0.7rem;
-    color: var(--gold-bright);
+    color: var(--rose);
     letter-spacing: 0.2em;
   }
 
@@ -1080,7 +1080,7 @@
 
   .needs-title {
     font-size: 0.7rem;
-    color: var(--gold-bright);
+    color: var(--rose);
     text-transform: uppercase;
     letter-spacing: 0.1em;
     margin-bottom: 0.5rem;
@@ -1095,7 +1095,7 @@
   }
 
   .need-icon { font-size: 0.8rem; width: 1.2rem; text-align: center; }
-  .need-label { font-size: 0.75rem; color: var(--gold-bright); width: 5rem; }
+  .need-label { font-size: 0.75rem; color: var(--rose); width: 5rem; }
 
   .need-bar {
     flex: 1;
@@ -1135,8 +1135,8 @@
   }
 
   .tab.active {
-    color: var(--gold-bright);
-    border-bottom-color: var(--gold-bright);
+    color: var(--rose);
+    border-bottom-color: var(--rose);
   }
 
   .tab:hover:not(.active) { color: var(--gold); }
@@ -1164,7 +1164,7 @@
     border: 1px solid var(--border-hover);
     border-radius: var(--radius-sm);
     padding: 0.6rem 2rem;
-    color: var(--gold-bright);
+    color: var(--rose);
     cursor: pointer;
     font-family: var(--font-body);
     font-size: 0.9rem;
@@ -1176,7 +1176,7 @@
   .visit-btn.secondary {
     background: var(--gold-glow);
     border-color: var(--border-hover);
-    color: var(--gold-bright);
+    color: var(--rose);
     font-size: 0.8rem;
     padding: 0.5rem 1.5rem;
   }
@@ -1186,7 +1186,7 @@
   .visit-btn.together {
     background: var(--gold-glow);
     border-color: var(--border-hover);
-    color: var(--gold-bright);
+    color: var(--rose);
     font-size: 0.8rem;
     padding: 0.5rem 1.5rem;
   }
@@ -1219,7 +1219,7 @@
     border: 1px solid var(--border-hover);
     border-radius: var(--radius-sm);
     padding: 0.35rem 1rem;
-    color: var(--gold-bright);
+    color: var(--rose);
     cursor: pointer;
     font-family: var(--font-body);
     font-size: 0.75rem;
@@ -1259,13 +1259,13 @@
   .outing-time { color: var(--text-muted); }
   .outing-arrow { color: var(--text-muted); font-size: 0.7rem; }
   .outing-return { color: var(--text-muted); }
-  .outing-duration { color: var(--gold-bright); font-size: 0.7rem; }
+  .outing-duration { color: var(--rose); font-size: 0.7rem; }
   .outing-active { color: var(--gold); font-style: italic; font-size: 0.75rem; }
 
   .section-label {
     display: block;
     font-size: 0.7rem;
-    color: var(--gold-bright);
+    color: var(--rose);
     text-transform: uppercase;
     letter-spacing: 0.1em;
     margin-bottom: 0.5rem;
@@ -1366,7 +1366,7 @@
 
   .action-btn:hover {
     background: var(--bg-active);
-    color: var(--gold-bright);
+    color: var(--rose);
   }
 
   /* Free text input */
@@ -1396,7 +1396,7 @@
     border: 1px solid var(--border-hover);
     border-radius: var(--radius-sm);
     width: 2.25rem;
-    color: var(--gold-bright);
+    color: var(--rose);
     cursor: pointer;
     font-size: 1rem;
     transition: all 150ms ease;
@@ -1463,7 +1463,7 @@
     background: var(--border);
   }
 
-  .trait-dot.filled { background: var(--gold-bright); }
+  .trait-dot.filled { background: var(--rose); }
 
   /* Care score */
   .care-score {
@@ -1474,7 +1474,7 @@
 
   .care-label {
     font-size: 0.65rem;
-    color: var(--gold-bright);
+    color: var(--rose);
     text-transform: uppercase;
     letter-spacing: 0.15em;
     display: block;
@@ -1482,7 +1482,7 @@
 
   .care-value {
     font-size: 1.5rem;
-    color: var(--gold-bright);
+    color: var(--rose);
     font-weight: 600;
   }
 
@@ -1519,7 +1519,7 @@
     letter-spacing: 0.05em;
   }
 
-  .edit-btn:hover { color: var(--gold-bright); }
+  .edit-btn:hover { color: var(--rose); }
 
   .identity-form {
     display: flex;
@@ -1562,7 +1562,7 @@
     border: 1px solid var(--border-hover);
     border-radius: var(--radius-sm);
     padding: 0.4rem 1.25rem;
-    color: var(--gold-bright);
+    color: var(--rose);
     cursor: pointer;
     font-family: var(--font-body);
     font-size: 0.8rem;
@@ -1636,7 +1636,7 @@
     border: 1px solid var(--border-hover);
     border-radius: var(--radius-sm);
     width: 2.25rem;
-    color: var(--gold-bright);
+    color: var(--rose);
     font-size: 1.2rem;
     cursor: pointer;
     transition: all 150ms ease;
@@ -1661,7 +1661,7 @@
     border: 1px solid var(--border);
   }
 
-  .milestone-star { color: var(--gold-bright); font-size: 0.8rem; margin-top: 0.1rem; }
+  .milestone-star { color: var(--rose); font-size: 0.8rem; margin-top: 0.1rem; }
 
   .milestone-content {
     flex: 1;
@@ -1685,7 +1685,7 @@
   }
 
   .milestone:hover .remove-btn { opacity: 1; }
-  .remove-btn:hover { color: var(--gold-bright); }
+  .remove-btn:hover { color: var(--rose); }
 
   /* Magic jar */
   .magic-jar {
@@ -1732,7 +1732,7 @@
 
   .loading-star {
     font-size: 1.5rem;
-    color: var(--gold-bright);
+    color: var(--rose);
     animation: twinkle 2s ease-in-out infinite;
   }
 
@@ -1762,7 +1762,7 @@
     transition: color 150ms ease;
   }
 
-  .nursery-chat-toggle:hover { color: var(--gold-bright); }
+  .nursery-chat-toggle:hover { color: var(--rose); }
 
   .nursery-chat-messages {
     max-height: 350px;

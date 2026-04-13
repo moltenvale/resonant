@@ -635,11 +635,11 @@
     font-size: 1.25rem;
     font-weight: 600;
     margin: 0;
-    color: var(--gold);
+    color: var(--rose);
   }
 
   .back-link, .back-btn {
-    color: var(--gold);
+    color: var(--rose);
     display: flex;
     align-items: center;
     text-decoration: none;
@@ -650,12 +650,12 @@
   }
 
   .back-link:hover, .back-btn:hover {
-    color: var(--gold-bright);
+    color: var(--rose-bright);
   }
 
   .loading {
     text-align: center;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     padding: 2rem;
   }
 
@@ -733,7 +733,7 @@
     border: 1px solid var(--border);
     border-left: none;
     border-radius: 0 0.5rem 0.5rem 0;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     font-size: 1.1rem;
     cursor: pointer;
     transition: all 150ms ease;
@@ -844,7 +844,7 @@
 
   .schedule-note {
     font-size: 0.7rem;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     flex-shrink: 0;
   }
 
@@ -904,7 +904,7 @@
   .cancel-btn {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     cursor: pointer;
     font-size: 0.9rem;
     padding: 0.2rem 0.4rem;
@@ -922,7 +922,7 @@
 
   .banner-day {
     font-size: 0.7rem;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     text-transform: uppercase;
     letter-spacing: 0.03em;
     width: 2rem;
@@ -941,7 +941,7 @@
 
   .banner-tasks {
     font-size: 0.65rem;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     background: var(--gold-glow);
     padding: 0.1rem 0.35rem;
     border-radius: 4px;
@@ -1016,13 +1016,13 @@
 
   .inline-save { color: var(--gold); }
   .inline-save:hover { background: var(--bg-active); }
-  .inline-cancel { color: var(--text-muted); }
+  .inline-cancel { color: var(--rose-dim); }
   .inline-cancel:hover { color: #c4386a; }
 
   .selected-date-label {
     font-size: 0.85rem;
     font-weight: 500;
-    color: var(--gold);
+    color: var(--rose);
     margin-bottom: 0.75rem;
   }
 
@@ -1052,7 +1052,7 @@
     font-size: 1rem;
     font-weight: 600;
     margin: 0;
-    color: var(--gold);
+    color: var(--rose);
   }
 
   .add-btn {
@@ -1077,7 +1077,7 @@
   }
 
   .empty-state {
-    color: var(--text-muted);
+    color: var(--rose-dim);
     font-size: 0.8rem;
     text-align: center;
     padding: 0.75rem 0;
@@ -1109,7 +1109,7 @@
   }
 
   .text-input::placeholder {
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
 
   .text-input:focus {
@@ -1208,7 +1208,7 @@
 
   .schedule-note {
     font-size: 0.7rem;
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
 
   /* Tasks list */
@@ -1268,18 +1268,18 @@
 
   .completed .task-title {
     text-decoration: line-through;
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
 
   .task-person {
     font-size: 0.65rem;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     white-space: nowrap;
     flex-shrink: 0;
   }
 
   .delete-btn {
-    color: var(--text-muted);
+    color: var(--rose-dim);
     background: none;
     border: none;
     cursor: pointer;
@@ -1345,13 +1345,13 @@
     border-radius: 999px;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    color: var(--text-muted);
+    color: var(--rose-dim);
     white-space: nowrap;
   }
 
   .project-note {
     font-size: 0.75rem;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     margin-top: 0.25rem;
   }
 
@@ -1359,7 +1359,7 @@
     display: flex;
     gap: 0.75rem;
     font-size: 0.7rem;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     margin-top: 0.25rem;
     opacity: 0.7;
   }
@@ -1439,7 +1439,7 @@
 
   .mini-day-name {
     font-size: 0.6rem;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
@@ -1486,40 +1486,40 @@
 
   /* Nav buttons color update */
   .nav-btn {
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
   .nav-btn:hover {
-    color: var(--gold);
+    color: var(--rose);
   }
   .week-label {
     color: var(--text-primary);
   }
   .day-name {
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
   .day-num {
     color: var(--text-primary);
   }
   .day-sched-more {
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
   .loading {
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
   .empty-state {
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
   .task-person {
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
   .delete-btn {
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
   .project-note {
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
   .project-person-tag {
-    color: var(--text-muted);
+    color: var(--rose-dim);
     background: var(--gold-ember);
     border-color: var(--border);
   }
@@ -1544,7 +1544,7 @@
   .ptog {
     border-color: var(--border-hover);
     background: var(--gold-ember);
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
   .ptog.active {
     background: var(--gold);
@@ -1571,7 +1571,7 @@
     border-color: var(--gold-dim);
   }
   .text-input::placeholder {
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
   .time-input {
     background: var(--bg-input);

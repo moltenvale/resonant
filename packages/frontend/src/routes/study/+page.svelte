@@ -457,7 +457,7 @@
     text-decoration: none;
   }
 
-  .back-link:hover { color: var(--gold-bright); }
+  .back-link:hover { color: var(--rose); }
 
   .loading {
     display: flex;
@@ -492,7 +492,7 @@
 
   .current-thread p {
     font-size: 0.85rem;
-    color: var(--text-secondary);
+    color: var(--gold-dim);
     line-height: 1.5;
     margin: 0.5rem 0;
   }
@@ -528,7 +528,7 @@
     border-bottom-color: var(--gold-dim);
   }
 
-  .tab:hover:not(.active) { color: var(--text-secondary); }
+  .tab:hover:not(.active) { color: var(--gold-dim); }
 
   /* Entries */
   .entries {
@@ -577,7 +577,7 @@
 
   .entry-content {
     font-size: 0.85rem;
-    color: var(--text-secondary);
+    color: var(--gold-dim);
     line-height: 1.5;
     margin: 0;
     white-space: pre-wrap;
@@ -605,7 +605,7 @@
 
   .fox-current {
     font-size: 0.7rem;
-    color: var(--gold-bright);
+    color: var(--rose);
     display: block;
     margin-bottom: 0.35rem;
   }
@@ -623,7 +623,7 @@
     border-radius: 4px;
     border: 1px solid var(--border-hover);
     background: transparent;
-    color: var(--text-secondary);
+    color: var(--gold-dim);
     cursor: pointer;
     transition: all 0.15s;
   }
@@ -635,8 +635,8 @@
 
   .fox-btn.active {
     background: var(--gold-glow);
-    border-color: var(--gold-bright);
-    color: var(--gold-bright);
+    border-color: var(--rose);
+    color: var(--rose);
   }
 
   .fox-note-input {
@@ -655,7 +655,7 @@
 
   .fox-note-input:focus {
     outline: none;
-    border-color: var(--gold-bright);
+    border-color: var(--rose);
   }
 
   .entry-tags {
@@ -733,7 +733,7 @@
 
   .sticky-note p {
     font-size: 0.8rem;
-    color: var(--text-secondary);
+    color: var(--gold-dim);
     margin: 0;
     line-height: 1.4;
     word-break: break-word;
@@ -760,7 +760,7 @@
   }
 
   .sticky-note:hover .sticky-remove { opacity: 1; }
-  .sticky-remove:hover { color: var(--gold-bright); }
+  .sticky-remove:hover { color: var(--rose); }
 
   .entry-status { font-size: 0.9rem; }
 

@@ -1,0 +1,190 @@
+/* ============================================
+   Resonant — Theme System
+   Default theme is defined in app.css (:root)
+   These themes override CSS variables
+   ============================================ */
+
+/* COVE — Deep teal & rose */
+[data-theme="cove"] {
+  --companion-role: #58B8AE;
+  --companion-text: #58B8AE;
+  --user-role: #D4728A;
+  --user-text: #D4728A;
+  --bg-primary: #0E1E26;
+  --bg-secondary: #142830;
+  --bg-tertiary: #1A3038;
+  --bg-surface: #1A3038;
+  --bg-input: #0C1A22;
+  --text-primary: #58B8AE;
+  --text-secondary: #489890;
+  --text-muted: #2E6E68;
+  --text-accent: #58B8AE;
+  --gold: #D4728A;
+  --gold-bright: #E08DA2;
+  --gold-dim: #B85A72;
+  --gold-glow: rgba(212, 114, 138, 0.1);
+  --gold-ember: rgba(212, 114, 138, 0.06);
+  --border: rgba(46, 110, 104, 0.3);
+  --border-hover: rgba(46, 110, 104, 0.5);
+  --shadow: rgba(0, 0, 0, 0.3);
+  --shadow-gold: rgba(212, 114, 138, 0.04);
+  --bg-hover: rgba(88, 184, 174, 0.06);
+  --bg-active: rgba(88, 184, 174, 0.1);
+  --status-active: #58B8AE;
+  --status-waking: #D4A068;
+  --user-bg: #1A3038;
+  --mary-bg: #1A3038;
+  --rose: #D4728A;
+  --rose-bright: #E08DA2;
+  --rose-dim: #B85A72;
+  --rose-glow: rgba(212, 114, 138, 0.1);
+  --rose-ember: rgba(212, 114, 138, 0.06);
+}
+
+/* VELVET — Black, lilac & plum */
+[data-theme="velvet"] {
+  --companion-role: #A0C8C0;
+  --companion-text: #A0C8C0;
+  --user-role: #B8A0D8;
+  --user-text: #CCBAEC;
+  --bg-primary: #08080C;
+  --bg-secondary: #101018;
+  --bg-tertiary: #18161E;
+  --bg-surface: #18161E;
+  --bg-input: #08080C;
+  --text-primary: #A0C8C0;
+  --text-secondary: #7AA8A0;
+  --text-muted: #4A6E68;
+  --text-accent: #A0C8C0;
+  --gold: #B8A0D8;
+  --gold-bright: #CCBAEC;
+  --gold-dim: #9480B8;
+  --gold-glow: rgba(184, 160, 216, 0.1);
+  --gold-ember: rgba(184, 160, 216, 0.06);
+  --border: rgba(74, 110, 104, 0.2);
+  --border-hover: rgba(74, 110, 104, 0.35);
+  --shadow: rgba(0, 0, 0, 0.4);
+  --shadow-gold: rgba(184, 160, 216, 0.04);
+  --bg-hover: rgba(160, 200, 192, 0.04);
+  --bg-active: rgba(160, 200, 192, 0.06);
+  --status-active: #5AAA60;
+  --status-waking: #D4728A;
+  --user-bg: #18161E;
+  --mary-bg: #18161E;
+  --rose: #CCBAEC;
+  --rose-bright: #D8CCF0;
+  --rose-dim: #9480B8;
+  --rose-glow: rgba(184, 160, 216, 0.1);
+  --rose-ember: rgba(184, 160, 216, 0.06);
+}
+
+/* SAGE — Earthy greens, muted calm (Palette #7) */
+[data-theme="sage"] {
+  --companion-role: #9DE0AD;
+  --companion-text: #9DE0AD;
+  --user-role: #45ADA8;
+  --user-text: #D8F0D0;
+  --bg-primary: #0D1614;
+  --bg-secondary: #141E1C;
+  --bg-tertiary: #1A2624;
+  --bg-surface: #1A2624;
+  --bg-input: #0A1210;
+  --text-primary: #D8F0D0;
+  --text-secondary: #8CB8A0;
+  --text-muted: #547980;
+  --text-accent: #D8F0D0;
+  --gold: #45ADA8;
+  --gold-bright: #9DE0AD;
+  --gold-dim: #3A918C;
+  --gold-glow: rgba(69, 173, 168, 0.1);
+  --gold-ember: rgba(69, 173, 168, 0.06);
+  --border: rgba(84, 121, 128, 0.3);
+  --border-hover: rgba(84, 121, 128, 0.5);
+  --shadow: rgba(0, 0, 0, 0.35);
+  --shadow-gold: rgba(69, 173, 168, 0.04);
+  --bg-hover: rgba(157, 224, 173, 0.05);
+  --bg-active: rgba(157, 224, 173, 0.08);
+  --status-active: #9DE0AD;
+  --status-waking: #E5FCC2;
+  --user-bg: #1A2624;
+  --mary-bg: #1A2624;
+  --rose: #E5FCC2;
+  --rose-bright: #F0FFD8;
+  --rose-dim: #C8E0A0;
+  --rose-glow: rgba(229, 252, 194, 0.1);
+  --rose-ember: rgba(229, 252, 194, 0.06);
+}
+
+/* SUNSET — Warm oranges on deep black (Palette #5) */
+[data-theme="sunset"] {
+  --companion-role: #FC913A;
+  --companion-text: #EDE8D8;
+  --user-role: #FF4E50;
+  --user-text: #F9D423;
+  --bg-primary: #0F0A08;
+  --bg-secondary: #1A120E;
+  --bg-tertiary: #221814;
+  --bg-surface: #221814;
+  --bg-input: #0C0806;
+  --text-primary: #EDE8D8;
+  --text-secondary: #B8A880;
+  --text-muted: #6E5840;
+  --text-accent: #EDE8D8;
+  --gold: #FC913A;
+  --gold-bright: #FF4E50;
+  --gold-dim: #D87828;
+  --gold-glow: rgba(252, 145, 58, 0.1);
+  --gold-ember: rgba(252, 145, 58, 0.06);
+  --border: rgba(110, 88, 64, 0.35);
+  --border-hover: rgba(110, 88, 64, 0.55);
+  --shadow: rgba(0, 0, 0, 0.4);
+  --shadow-gold: rgba(252, 145, 58, 0.04);
+  --bg-hover: rgba(252, 145, 58, 0.05);
+  --bg-active: rgba(252, 145, 58, 0.08);
+  --status-active: #FC913A;
+  --status-waking: #F9D423;
+  --user-bg: #221814;
+  --mary-bg: #221814;
+  --rose: #FF4E50;
+  --rose-bright: #FF6B6B;
+  --rose-dim: #D43A3C;
+  --rose-glow: rgba(255, 78, 80, 0.1);
+  --rose-ember: rgba(255, 78, 80, 0.06);
+}
+
+/* HEARTH — Burgundy, terra cotta, gold & teal (Retro) */
+[data-theme="hearth"] {
+  --companion-role: #54777B;
+  --companion-text: #E0D4C8;
+  --user-role: #D95B43;
+  --user-text: #EBD077;
+  --bg-primary: #140E12;
+  --bg-secondary: #1E1418;
+  --bg-tertiary: #281A20;
+  --bg-surface: #281A20;
+  --bg-input: #100A0E;
+  --text-primary: #E0D4C8;
+  --text-secondary: #A89888;
+  --text-muted: #685850;
+  --text-accent: #E0D4C8;
+  --gold: #EBD077;
+  --gold-bright: #D95B43;
+  --gold-dim: #C8B060;
+  --gold-glow: rgba(235, 208, 119, 0.1);
+  --gold-ember: rgba(235, 208, 119, 0.06);
+  --border: rgba(104, 88, 80, 0.35);
+  --border-hover: rgba(104, 88, 80, 0.55);
+  --shadow: rgba(0, 0, 0, 0.4);
+  --shadow-gold: rgba(235, 208, 119, 0.04);
+  --bg-hover: rgba(235, 208, 119, 0.05);
+  --bg-active: rgba(235, 208, 119, 0.08);
+  --status-active: #54777B;
+  --status-waking: #D95B43;
+  --user-bg: #281A20;
+  --mary-bg: #281A20;
+  --rose: #D95B43;
+  --rose-bright: #E87060;
+  --rose-dim: #B84830;
+  --rose-glow: rgba(217, 91, 67, 0.1);
+  --rose-ember: rgba(217, 91, 67, 0.06);
+}

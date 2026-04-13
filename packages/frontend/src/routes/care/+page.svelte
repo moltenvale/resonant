@@ -906,7 +906,7 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.04);
-    color: var(--text-muted);
+    color: var(--rose-dim);
     font-family: var(--font-body);
     font-size: 0.875rem;
     cursor: pointer;
@@ -931,7 +931,7 @@
   .date-btn {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     cursor: pointer;
     padding: 0.25rem;
     display: flex;
@@ -960,7 +960,7 @@
 
   .loading {
     text-align: center;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     padding: 2rem;
   }
 
@@ -1103,7 +1103,7 @@
   .glasses-count {
     margin-left: auto;
     font-size: 0.7rem;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     font-family: var(--font-body);
   }
 
@@ -1169,7 +1169,7 @@
 
   .counter-max {
     font-size: 0.75rem;
-    color: var(--text-muted);
+    color: var(--rose-dim);
   }
 
   /* Rating pills */
@@ -1427,7 +1427,7 @@
   .symptom-note {
     flex: 1;
     font-size: 0.7rem;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     cursor: pointer;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1468,7 +1468,7 @@
   .symptom-action-btn {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     font-size: 0.75rem;
     cursor: pointer;
     padding: 0.1rem 0.25rem;
@@ -1529,7 +1529,7 @@
   .we-note {
     flex: 1;
     font-size: 0.7rem;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     cursor: pointer;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1570,7 +1570,7 @@
   .we-action {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: var(--rose-dim);
     font-size: 0.75rem;
     cursor: pointer;
     padding: 0.1rem 0.25rem;
