@@ -31,6 +31,7 @@
 
   const MODELS = [
     { id: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+    { id: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
     { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
   ];
@@ -100,13 +101,64 @@
     }
   }
 
-  onMount(loadPrefs);
+  // Theme
+  let currentTheme = $state('dark');
+
+  const THEMES = [
+    { id: 'dark', name: 'Default', desc: 'The original', colors: ['#09090b', '#111113', '#5eaba5', '#e4e4e7'] },
+    { id: 'cove', name: 'Cove', desc: 'Deep teal & rose', colors: ['#0E1E26', '#1A3038', '#D4728A', '#58B8AE'] },
+    { id: 'velvet', name: 'Velvet', desc: 'Black, lilac & plum', colors: ['#08080C', '#18161E', '#B8A0D8', '#A0C8C0'] },
+    { id: 'sage', name: 'Sage', desc: 'Earthy greens', colors: ['#0D1614', '#1A2624', '#45ADA8', '#D8F0D0'] },
+    { id: 'sunset', name: 'Sunset', desc: 'Warm orange glow', colors: ['#0F0A08', '#221814', '#FC913A', '#EDE8D8'] },
+    { id: 'hearth', name: 'Hearth', desc: 'Burgundy & gold', colors: ['#140E12', '#281A20', '#EBD077', '#D95B43'] },
+  ];
+
+  function setTheme(id: string) {
+    currentTheme = id;
+    document.documentElement.setAttribute('data-theme', id);
+    localStorage.setItem('resonant-theme', id);
+  }
+
+  onMount(() => {
+    loadPrefs();
+    currentTheme = localStorage.getItem('resonant-theme') || document.documentElement.getAttribute('data-theme') || 'dark';
+    // Apply saved theme on load
+    document.documentElement.setAttribute('data-theme', currentTheme);
+  });
 </script>
 
 <div class="prefs-panel">
   {#if loading}
     <p class="loading-text">Loading preferences...</p>
   {:else if prefs}
+    <!-- Appearance -->
+    <section class="section">
+      <h3 class="section-title">Appearance</h3>
+      <p class="section-desc">Theme applies across all pages.</p>
+      <div class="theme-grid">
+        {#each THEMES as theme}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="theme-card"
+            class:active={currentTheme === theme.id}
+            onclick={() => setTheme(theme.id)}
+          >
+            <div class="theme-swatches">
+              {#each theme.colors as color}
+                <div class="theme-swatch" style="background: {color}"></div>
+              {/each}
+            </div>
+            <div class="theme-name">{theme.name}</div>
+            <div class="theme-desc">{theme.desc}</div>
+            {#if currentTheme === theme.id}
+              <span class="theme-active-badge">Active</span>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    </section>
+
     <!-- Identity -->
     <section class="section">
       <h3 class="section-title">Identity</h3>
@@ -508,5 +560,74 @@ GROQ_API_KEY=your_groq_key</pre>
     border-radius: 4px;
     overflow-x: auto;
     white-space: pre;
+  }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .theme-card {
+    padding: 0.75rem;
+    background: var(--bg-surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: border-color 150ms ease, transform 150ms ease;
+    position: relative;
+  }
+
+  .theme-card:hover {
+    border-color: var(--border-hover);
+  }
+
+  .theme-card.active {
+    border-color: var(--gold);
+  }
+
+  .theme-swatches {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 0.5rem;
+  }
+
+  .theme-swatch {
+    flex: 1;
+    height: 28px;
+    border-radius: 4px;
+  }
+
+  .theme-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .theme-desc {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    margin-top: 0.125rem;
+  }
+
+  .theme-active-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--gold);
+    background: var(--bg-primary);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
   }
 </style>
