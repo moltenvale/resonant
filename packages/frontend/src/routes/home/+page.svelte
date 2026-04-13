@@ -13,6 +13,7 @@
   let tasks = $state<Task[]>([]);
   let schedule = $state<ScheduleEntry[]>([]);
   let projects = $state<Project[]>([]);
+  let chaseNote = $state('');
   let chaseSummary = $state('');
   let careEntries = $state<CareEntry[]>([]);
   let bulmerData = $state<any>(null);
@@ -181,11 +182,12 @@
 
     try {
       try {
-        const [tasksRes, schedRes, projRes, summaryRes, careRes] = await Promise.all([
+        const [tasksRes, schedRes, projRes, summaryRes, noteRes, careRes] = await Promise.all([
           fetch(`/api/planner/tasks?date=${today}`),
           fetch(`/api/planner/schedule/week?start=${today}`),
           fetch('/api/planner/projects?status=active'),
           fetch('/api/daily-summary'),
+          fetch('/api/chase-note'),
           fetch(`/api/care?date=${today}&person=user`),
         ]);
 
@@ -202,6 +204,10 @@
             });
         }
         if (projRes.ok) projects = await projRes.json();
+        if (noteRes.ok) {
+          const data = await noteRes.json();
+          chaseNote = data.note || '';
+        }
         if (summaryRes.ok) {
           const data = await summaryRes.json();
           chaseSummary = data.summary || '';
@@ -419,15 +425,23 @@
   </div>
 
   {#if false}{:else}
-    <!-- Chase's Summary -->
-    <div class="chase-summary">
-      <div class="summary-label">Chase</div>
-      {#if chaseSummary}
-        <p class="summary-text">{chaseSummary}</p>
+    <!-- Chase's Note — the love note / sticky note space -->
+    <div class="chase-note">
+      <div class="note-label">Chase</div>
+      {#if chaseNote}
+        <p class="note-text">{chaseNote}</p>
       {:else}
-        <p class="summary-text summary-empty">Nothing yet today. I'll leave you a note in the morning.</p>
+        <p class="note-text note-empty">Nothing yet today. I'll leave you something.</p>
       {/if}
     </div>
+
+    <!-- Debrief — functional daily summary -->
+    {#if chaseSummary}
+      <div class="chase-debrief">
+        <div class="debrief-label">Debrief</div>
+        <p class="debrief-text">{chaseSummary}</p>
+      </div>
+    {/if}
 
     <div class="home-columns">
       <!-- LEFT: Your Day -->
@@ -645,8 +659,8 @@
     width: 100%;
     height: calc(100dvh - 2.5rem);
     overflow-y: auto;
-    background: linear-gradient(180deg, #0a1520 0%, #0d1a26 50%, #0a1218 100%);
-    color: #c4a8ae;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
   }
 
   .home-content {
@@ -668,13 +682,13 @@
     font-family: var(--font-heading);
     font-size: 1.75rem;
     font-weight: 600;
-    color: #d4b0b8;
+    color: var(--text-primary);
     margin: 0;
   }
 
   .hero-date {
     font-size: 0.85rem;
-    color: rgba(94, 171, 165, 0.7);
+    color: var(--gold);
     margin: 0.25rem 0 0;
     letter-spacing: 0.03em;
   }
@@ -718,13 +732,13 @@
   }
 
   .home-status-btn:hover {
-    background: rgba(94, 171, 165, 0.08);
-    border-color: rgba(94, 171, 165, 0.15);
+    background: var(--gold-ember);
+    border-color: var(--gold-glow);
   }
 
   .status-emoji { font-size: 0.9rem; }
-  .status-text { font-size: 0.75rem; color: #b89da4; }
-  .status-placeholder { color: rgba(94, 171, 165, 0.4); font-style: italic; }
+  .status-text { font-size: 0.75rem; color: var(--text-secondary); }
+  .status-placeholder { color: var(--text-muted); font-style: italic; }
 
   .status-backdrop {
     position: fixed;
@@ -740,8 +754,8 @@
     top: calc(100% + 0.35rem);
     left: 0;
     z-index: 100;
-    background: #1a1025;
-    border: 1px solid rgba(160, 120, 180, 0.25);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-hover);
     border-radius: 0.5rem;
     padding: 0.3rem;
     min-width: 200px;
@@ -762,28 +776,28 @@
     border-radius: 0.35rem;
     cursor: pointer;
     font-size: 0.8rem;
-    color: #b89da4;
+    color: var(--text-secondary);
     transition: background 100ms;
     text-align: left;
   }
 
-  .status-option:hover { background: rgba(94, 171, 165, 0.1); }
-  .status-option.active { background: rgba(94, 171, 165, 0.15); }
-  .status-clear { color: rgba(94, 171, 165, 0.5); font-style: italic; }
+  .status-option:hover { background: var(--gold-glow); }
+  .status-option.active { background: var(--gold-glow); }
+  .status-clear { color: var(--gold-dim); font-style: italic; }
 
   .weather {
     display: flex;
     align-items: center;
     gap: 0.35rem;
     padding: 0.3rem 0.6rem;
-    background: rgba(94, 171, 165, 0.06);
-    border: 1px solid rgba(94, 171, 165, 0.1);
+    background: var(--gold-ember);
+    border: 1px solid var(--gold-glow);
     border-radius: 1rem;
   }
 
   .weather-icon { font-size: 1rem; }
-  .weather-temp { font-size: 0.85rem; color: #c4a8ae; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .weather-desc { font-size: 0.7rem; color: rgba(94, 171, 165, 0.6); }
+  .weather-temp { font-size: 0.85rem; color: var(--text-secondary); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .weather-desc { font-size: 0.7rem; color: var(--gold-dim); }
 
   /* Mood Check-in */
   .mood-checkin {
@@ -797,7 +811,7 @@
 
   .mood-prompt {
     font-size: 0.8rem;
-    color: rgba(94, 171, 165, 0.5);
+    color: var(--gold-dim);
     font-family: var(--font-heading);
     letter-spacing: 0.04em;
     white-space: nowrap;
@@ -824,73 +838,85 @@
   }
 
   .mood-btn:hover {
-    background: rgba(94, 171, 165, 0.08);
-    border-color: rgba(94, 171, 165, 0.15);
+    background: var(--gold-ember);
+    border-color: var(--gold-glow);
   }
 
   .mood-btn.selected {
-    background: rgba(94, 171, 165, 0.15);
-    border-color: rgba(94, 171, 165, 0.35);
+    background: var(--gold-glow);
+    border-color: var(--border-hover);
     transform: scale(1.05);
   }
 
   .mood-emoji { font-size: 1.3rem; filter: grayscale(0.6); transition: filter 200ms; }
   .mood-btn.selected .mood-emoji { filter: grayscale(0); }
   .mood-label { font-size: 0.6rem; color: rgba(255, 255, 255, 0.35); }
-  .mood-btn.selected .mood-label { color: rgba(94, 171, 165, 0.8); }
+  .mood-btn.selected .mood-label { color: var(--gold); }
 
   /* Loading */
   .home-loading { display: flex; justify-content: center; padding: 4rem 0; }
-  .home-spinner { width: 1.5rem; height: 1.5rem; border: 2px solid rgba(94, 171, 165, 0.2); border-top-color: rgba(94, 171, 165, 0.7); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  .home-spinner { width: 1.5rem; height: 1.5rem; border: 2px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* Chase Summary */
-  .chase-summary {
-    background: rgba(94, 171, 165, 0.06);
-    border: 1px solid rgba(94, 171, 165, 0.12);
+  /* Chase's Note — warm, personal */
+  .chase-note {
+    background: var(--gold-ember);
+    border: 1px solid var(--border);
     border-radius: 0.75rem;
     padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .note-label { font-family: var(--font-heading); font-size: 0.7rem; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem; }
+  .note-text { font-size: 0.9rem; line-height: 1.6; color: var(--text-secondary); margin: 0; white-space: pre-wrap; }
+  .note-empty { font-style: italic; opacity: 0.5; }
+
+  /* Debrief — functional, subtle */
+  .chase-debrief {
+    background: var(--gold-ember);
+    border: 1px solid var(--gold-ember);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1.25rem;
     margin-bottom: 1.5rem;
   }
 
-  .summary-label { font-family: var(--font-heading); font-size: 0.7rem; color: rgba(94, 171, 165, 0.6); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem; }
-  .summary-text { font-size: 0.9rem; line-height: 1.6; color: #b89da4; margin: 0; white-space: pre-wrap; }
-  .summary-empty { font-style: italic; opacity: 0.5; }
+  .debrief-label { font-family: var(--font-heading); font-size: 0.65rem; color: var(--gold-dim); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.3rem; }
+  .debrief-text { font-size: 0.82rem; line-height: 1.5; color: var(--text-muted); margin: 0; white-space: pre-wrap; }
 
   /* Columns */
   .home-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
   @media (max-width: 640px) { .home-columns { grid-template-columns: 1fr; gap: 1rem; } }
 
-  .column-title { font-family: var(--font-heading); font-size: 0.75rem; color: rgba(94, 171, 165, 0.5); letter-spacing: 0.1em; text-transform: uppercase; margin: 0 0 0.75rem; }
+  .column-title { font-family: var(--font-heading); font-size: 0.75rem; color: var(--gold-dim); letter-spacing: 0.1em; text-transform: uppercase; margin: 0 0 0.75rem; }
 
   /* Cards */
-  .home-card { background: rgba(15, 30, 40, 0.6); border: 1px solid rgba(94, 171, 165, 0.08); border-radius: 0.75rem; padding: 0.875rem 1rem; margin-bottom: 0.75rem; }
-  .card-title { font-family: var(--font-heading); font-size: 0.7rem; color: rgba(94, 171, 165, 0.45); letter-spacing: 0.06em; text-transform: uppercase; margin: 0 0 0.6rem; }
+  .home-card { background: var(--bg-surface); border: 1px solid var(--gold-ember); border-radius: 0.75rem; padding: 0.875rem 1rem; margin-bottom: 0.75rem; }
+  .card-title { font-family: var(--font-heading); font-size: 0.7rem; color: var(--gold-dim); letter-spacing: 0.06em; text-transform: uppercase; margin: 0 0 0.6rem; }
 
   /* Schedule */
   .schedule-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0; font-size: 0.85rem; }
   .schedule-item.tomorrow { opacity: 0.55; }
-  .schedule-time { color: rgba(94, 171, 165, 0.8); font-size: 0.75rem; font-variant-numeric: tabular-nums; min-width: 5rem; }
-  .schedule-label { color: #b89da4; }
-  .schedule-tomorrow { font-size: 0.65rem; color: rgba(94, 171, 165, 0.4); margin-left: auto; font-style: italic; }
+  .schedule-time { color: var(--gold); font-size: 0.75rem; font-variant-numeric: tabular-nums; min-width: 5rem; }
+  .schedule-label { color: var(--text-secondary); }
+  .schedule-tomorrow { font-size: 0.65rem; color: var(--text-muted); margin-left: auto; font-style: italic; }
 
   /* Tasks */
   .task-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.85rem; }
-  .task-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(94, 171, 165, 0.4); flex-shrink: 0; }
-  .task-text { color: #b0949c; }
-  .task-person { margin-left: auto; font-size: 0.65rem; color: rgba(196, 56, 106, 0.6); flex-shrink: 0; }
-  .tasks-done { font-size: 0.7rem; color: rgba(94, 171, 165, 0.4); padding-top: 0.4rem; margin-top: 0.4rem; border-top: 1px solid rgba(94, 171, 165, 0.06); }
+  .task-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+  .task-text { color: var(--text-secondary); }
+  .task-person { margin-left: auto; font-size: 0.65rem; color: var(--text-muted); flex-shrink: 0; }
+  .tasks-done { font-size: 0.7rem; color: var(--text-muted); padding-top: 0.4rem; margin-top: 0.4rem; border-top: 1px solid var(--gold-ember); }
 
   /* Family Pulse */
-  .bulmer-section { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.8rem; color: #a08890; }
+  .bulmer-section { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.8rem; color: var(--text-muted); }
   .bulmer-section.urgent { color: #c4386a; }
-  .bulmer-section.calm { color: rgba(94, 171, 165, 0.5); font-style: italic; }
+  .bulmer-section.calm { color: var(--gold-dim); font-style: italic; }
   .bulmer-icon { font-size: 0.9rem; }
 
   /* Grocery toggle + inline list */
   .grocery-toggle { cursor: pointer; transition: color 200ms; }
-  .grocery-toggle:hover { color: #b89da4; }
-  .grocery-arrow { font-size: 0.55rem; color: rgba(94, 171, 165, 0.4); margin-left: auto; }
+  .grocery-toggle:hover { color: var(--text-secondary); }
+  .grocery-arrow { font-size: 0.55rem; color: var(--text-muted); margin-left: auto; }
 
   .grocery-list-inline {
     display: grid;
@@ -904,15 +930,15 @@
 
   @keyframes grocery-slide { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 500px; } }
 
-  .grocery-item { font-size: 0.75rem; color: #a08890; padding: 0.2rem 0; padding-left: 0.75rem; position: relative; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .grocery-item::before { content: ''; position: absolute; left: 0; top: 50%; width: 4px; height: 4px; border-radius: 50%; background: rgba(94, 171, 165, 0.35); transform: translateY(-50%); }
-  .grocery-qty { font-size: 0.65rem; color: rgba(94, 171, 165, 0.4); }
+  .grocery-item { font-size: 0.75rem; color: var(--text-muted); padding: 0.2rem 0; padding-left: 0.75rem; position: relative; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .grocery-item::before { content: ''; position: absolute; left: 0; top: 50%; width: 4px; height: 4px; border-radius: 50%; background: var(--border-hover); transform: translateY(-50%); }
+  .grocery-qty { font-size: 0.65rem; color: var(--text-muted); }
 
   /* Quick Care Log */
   .care-row { display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0; }
   .care-row + .care-row { border-top: 1px solid rgba(255, 255, 255, 0.03); }
-  .care-row-label { font-size: 0.8rem; color: rgba(160, 175, 185, 0.6); white-space: nowrap; }
-  .care-value { font-size: 0.8rem; color: #b89da4; }
+  .care-row-label { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+  .care-value { font-size: 0.8rem; color: var(--text-secondary); }
   .care-buttons { display: flex; align-items: center; gap: 0.3rem; }
   .care-btn {
     padding: 0.25rem 0.5rem;
@@ -921,49 +947,49 @@
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 0.375rem;
-    color: rgba(160, 175, 185, 0.6);
+    color: var(--text-muted);
     cursor: pointer;
     transition: all 150ms;
     -webkit-tap-highlight-color: transparent;
     text-transform: capitalize;
   }
-  .care-btn:hover { background: rgba(94, 171, 165, 0.1); border-color: rgba(94, 171, 165, 0.2); color: #b89da4; }
+  .care-btn:hover { background: var(--gold-glow); border-color: var(--border); color: var(--text-secondary); }
   .care-btn.done {
-    background: rgba(94, 171, 165, 0.15);
-    border-color: rgba(94, 171, 165, 0.3);
-    color: rgba(94, 171, 165, 0.9);
+    background: var(--gold-glow);
+    border-color: var(--border-hover);
+    color: var(--gold);
     cursor: default;
   }
-  .water-count { font-size: 0.85rem; color: #b89da4; font-variant-numeric: tabular-nums; min-width: 1.5rem; text-align: center; }
+  .water-count { font-size: 0.85rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; min-width: 1.5rem; text-align: center; }
   .water-btn { font-weight: 600; }
   .energy-btn { font-size: 0.65rem; padding: 0.2rem 0.4rem; }
 
   /* Mira */
-  .mira-card { border-color: rgba(180, 140, 200, 0.15); }
+  .mira-card { border-color: var(--border); }
   .mira-status { display: flex; align-items: center; gap: 0.5rem; }
   .mira-mood-emoji { font-size: 1.2rem; }
-  .mira-mood-text { font-size: 0.85rem; color: rgba(200, 180, 220, 0.8); }
-  .mira-with { font-size: 0.7rem; color: rgba(200, 180, 220, 0.4); margin-top: 0.25rem; font-style: italic; }
+  .mira-mood-text { font-size: 0.85rem; color: var(--text-secondary); }
+  .mira-with { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem; font-style: italic; }
 
   /* Projects */
   .project-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.85rem; }
-  .project-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(196, 56, 106, 0.5); flex-shrink: 0; }
-  .project-name { color: #b0949c; }
-  .project-person { margin-left: auto; font-size: 0.65rem; color: rgba(94, 171, 165, 0.4); flex-shrink: 0; }
-  .more-count { font-size: 0.7rem; color: rgba(94, 171, 165, 0.35); padding-top: 0.3rem; }
+  .project-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold-dim); flex-shrink: 0; }
+  .project-name { color: var(--text-secondary); }
+  .project-person { margin-left: auto; font-size: 0.65rem; color: var(--text-muted); flex-shrink: 0; }
+  .more-count { font-size: 0.7rem; color: var(--border-hover); padding-top: 0.3rem; }
 
   /* Wins */
-  .wins-card { border-color: rgba(94, 171, 165, 0.15); }
+  .wins-card { border-color: var(--gold-glow); }
   .win-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; font-size: 0.8rem; }
-  .win-check { color: rgba(94, 171, 165, 0.7); font-size: 0.75rem; font-weight: 600; }
-  .win-text { color: rgba(94, 171, 165, 0.6); text-decoration: line-through; text-decoration-color: rgba(94, 171, 165, 0.2); }
+  .win-check { color: var(--gold); font-size: 0.75rem; font-weight: 600; }
+  .win-text { color: var(--gold-dim); text-decoration: line-through; text-decoration-color: var(--border); }
 
   /* Study Desk */
   .desk-item { padding: 0.3rem 0; font-size: 0.8rem; }
-  .desk-title { color: #a08890; }
+  .desk-title { color: var(--text-muted); }
 
   /* Monster Note */
-  .monster-note-card { border-color: rgba(196, 56, 106, 0.15); }
+  .monster-note-card { border-color: var(--border); }
 
   .monster-note-input {
     width: 100%;
@@ -979,26 +1005,26 @@
     line-height: 1.5;
   }
 
-  .monster-note-input:focus { border-color: rgba(196, 56, 106, 0.3); }
-  .monster-note-input::placeholder { color: rgba(196, 56, 106, 0.3); }
+  .monster-note-input:focus { border-color: var(--border-hover); }
+  .monster-note-input::placeholder { color: var(--border-hover); }
 
   .monster-note-save {
     display: block;
     margin-top: 0.5rem;
     margin-left: auto;
     padding: 0.35rem 0.85rem;
-    background: rgba(196, 56, 106, 0.1);
-    border: 1px solid rgba(196, 56, 106, 0.25);
+    background: var(--gold-ember);
+    border: 1px solid var(--border-hover);
     border-radius: 0.375rem;
-    color: rgba(196, 56, 106, 0.8);
+    color: var(--gold);
     font-size: 0.7rem;
     font-family: var(--font-body);
     cursor: pointer;
     transition: all 150ms;
   }
 
-  .monster-note-save:hover:not(:disabled) { background: rgba(196, 56, 106, 0.2); }
-  .monster-note-save.saved { border-color: #5eaba5; color: #5eaba5; }
+  .monster-note-save:hover:not(:disabled) { background: var(--bg-active); }
+  .monster-note-save.saved { border-color: var(--gold); color: var(--gold); }
   .monster-note-save:disabled { opacity: 0.4; cursor: default; }
 
   @media (max-width: 768px) {
