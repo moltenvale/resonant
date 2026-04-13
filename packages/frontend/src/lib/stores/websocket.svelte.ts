@@ -199,6 +199,13 @@ function handleMessage(event: MessageEvent) {
         );
         break;
 
+      case 'mira_presence':
+        // Mira's micro-response — inject as a system message in the active thread
+        if (msg.message && msg.message.thread_id === activeThreadId) {
+          messages = [...messages, msg.message];
+        }
+        break;
+
       case 'stream_start':
         streamingMessageId = msg.messageId;
         streamingTokens = '';
@@ -764,6 +771,12 @@ export function sendCanvasCreate(title: string, contentType: 'markdown' | 'code'
 }
 export function sendCanvasUpdate(canvasId: string, content: string) {
   send({ type: 'canvas_update', canvasId, content });
+  // Optimistically update local store (server broadcasts to others via broadcastExcept)
+  canvases = canvases.map(c =>
+    c.id === canvasId
+      ? { ...c, content, updated_at: new Date().toISOString() }
+      : c
+  );
 }
 export function sendCanvasUpdateTitle(canvasId: string, title: string) {
   send({ type: 'canvas_update_title', canvasId, title });

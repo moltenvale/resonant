@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import PageHeader from '$lib/components/PageHeader.svelte';
 
   interface FileEntry {
     fileId: string;
@@ -18,6 +19,7 @@
   let loading = $state(true);
   let filter = $state<'all' | 'image' | 'audio' | 'file' | 'orphan'>('all');
   let deleteConfirm = $state<string | null>(null);
+  let audioPlaying = $state<string | null>(null);
 
   const filteredFiles = $derived(() => {
     if (filter === 'orphan') return files.filter(f => !f.inUse);
@@ -85,24 +87,7 @@
 </script>
 
 <div class="files-page">
-  <header class="files-header">
-    <a href="/chat" class="back-link">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M19 12H5M12 19l-7-7 7-7"/>
-      </svg>
-      Chat
-    </a>
-    <h1 class="header-title">Files</h1>
-    <div class="storage-summary">
-      <span class="summary-item">{totalCount} files</span>
-      <span class="summary-dot"></span>
-      <span class="summary-item">{formatSize(totalSize)}</span>
-      {#if orphanCount > 0}
-        <span class="summary-dot"></span>
-        <span class="summary-item orphan-count">{orphanCount} orphan{orphanCount === 1 ? '' : 's'}</span>
-      {/if}
-    </div>
-  </header>
+  <PageHeader title="Files" />
 
   <nav class="filter-bar">
     {#each [['all', 'All'], ['image', 'Images'], ['audio', 'Audio'], ['file', 'Files'], ['orphan', 'Orphans']] as [value, label]}
@@ -144,14 +129,24 @@
               </span>
             </div>
             <div class="file-actions">
-              <a
-                href="/api/files/{file.fileId}"
-                target="_blank"
-                rel="noopener"
-                class="view-btn"
-              >
-                View
-              </a>
+              {#if file.contentType === 'audio'}
+                <button class="view-btn" onclick={() => {
+                  const playing = document.querySelector(`audio[data-id="${file.fileId}"]`) as HTMLAudioElement | null;
+                  if (playing) { playing.paused ? playing.play() : playing.pause(); }
+                  else { audioPlaying = audioPlaying === file.fileId ? null : file.fileId; }
+                }}>
+                  {audioPlaying === file.fileId ? '⏸' : '▶'}
+                </button>
+              {:else}
+                <a
+                  href="/api/files/{file.fileId}"
+                  target="_blank"
+                  rel="noopener"
+                  class="view-btn"
+                >
+                  View
+                </a>
+              {/if}
               {#if deleteConfirm === file.fileId}
                 <button class="confirm-delete-btn" onclick={() => deleteFile(file.fileId)}>Confirm</button>
                 <button class="cancel-btn" onclick={() => deleteConfirm = null}>Cancel</button>
@@ -159,6 +154,11 @@
                 <button class="delete-btn" onclick={() => deleteConfirm = file.fileId}>Delete</button>
               {/if}
             </div>
+            {#if audioPlaying === file.fileId}
+              <audio data-id={file.fileId} src="/api/files/{file.fileId}" autoplay controls
+                onended={() => audioPlaying = null}
+                style="width:100%;margin-top:0.5rem;height:32px" />
+            {/if}
           </div>
         {/each}
       </div>

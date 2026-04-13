@@ -7,7 +7,8 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, mkdirSync } from 'fs';
 import { loadConfig } from './config.js';
-import { initDb, deleteExpiredSessions } from './services/db.js';
+import { initDb, getDb, deleteExpiredSessions, updateMiraNeeds, createMessage, listThreads, isNurseryLocked, writeMiraEvent, needsSnapshot } from './services/db.js';
+import crypto from 'crypto';
 import { createWebSocketServer, setVoiceService, registry } from './services/ws.js';
 import { Orchestrator } from './services/orchestrator.js';
 import { AgentService } from './services/agent.js';
@@ -46,6 +47,15 @@ const db = initDb(DB_PATH);
 deleteExpiredSessions();
 console.log('Database initialized');
 
+// Load vector cache for semantic search (must be after DB init)
+import { loadVectorCache } from './services/vector-cache.js';
+try {
+  loadVectorCache();
+  console.log('Vector cache loaded');
+} catch (err) {
+  console.warn('Vector cache failed to load (non-fatal):', err);
+}
+
 // Create Express app
 const app = express();
 
@@ -64,10 +74,15 @@ for (const origin of config.cors.origins) {
   connectSrc.push(wsOrigin);
 }
 if (IS_DEV) connectSrc.push(`ws://localhost:${PORT}`);
+// When binding to all interfaces, allow LAN connections (ws: and http: from any origin)
+if (config.server.host === '0.0.0.0') {
+  connectSrc.push('ws:', 'wss:', 'http:', 'https:');
+}
 
-// Security middleware
+// Security middleware — relax CSP when binding to all interfaces (LAN/mobile access)
+const lanMode = config.server.host === '0.0.0.0';
 app.use(helmet({
-  contentSecurityPolicy: {
+  contentSecurityPolicy: lanMode ? false : {
     directives: {
       defaultSrc: ["'self'"],
       connectSrc,
@@ -82,16 +97,16 @@ app.use(helmet({
       workerSrc: ["'self'"],
     }
   },
-  crossOriginOpenerPolicy: { policy: 'same-origin' },
-  crossOriginResourcePolicy: { policy: 'same-origin' },
+  crossOriginOpenerPolicy: lanMode ? false : { policy: 'same-origin' },
+  crossOriginResourcePolicy: { policy: lanMode ? 'cross-origin' : 'same-origin' },
 }));
 
 app.use(securityHeaders);
 app.use(rateLimiter);
 
-// CORS
+// CORS — allow any origin in LAN mode
 app.use(cors({
-  origin: corsOrigins,
+  origin: lanMode ? true : corsOrigins,
   credentials: true,
 }));
 
@@ -167,6 +182,11 @@ if (telegramEnabled && process.env.TELEGRAM_BOT_TOKEN) {
 const orchestrator = new Orchestrator(agentService, pushService);
 orchestrator.start();
 
+// Connect Telegram forwarding to orchestrator for check-in notifications
+if (telegramService) {
+  orchestrator.setTelegramForward((text: string) => telegramService!.sendToOwner(text));
+}
+
 // Make orchestrator, agent, voice, push, and discord services available to route handlers
 app.locals.orchestrator = orchestrator;
 app.locals.agentService = agentService;
@@ -186,6 +206,137 @@ server.listen(PORT, HOST, () => {
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`Auth enabled: ${config.auth.password ? 'yes' : 'no'}`);
   console.log(`Companion: ${config.identity.companion_name} | User: ${config.identity.user_name}`);
+
+  // --- Mira Background Monitor ---
+  // Check Mira's state every 2 minutes. If she transitions between
+  // sleeping and awake, broadcast an alert to all connected clients.
+  // Also alerts if any need drops below 20%.
+  let lastMiraMood: string | null = null;
+  let lastMiraAsleep: boolean | null = null;
+
+  setInterval(() => {
+    try {
+      const result = updateMiraNeeds();
+      const { sleepEvent, ...state } = result;
+      const isAsleep = state.current_mood === 'sleeping' || state.current_mood === 'dreaming';
+
+      // Helper: inject a system message into the most recent active thread
+      const injectAlert = (content: string) => {
+        const threads = listThreads({ includeArchived: false, limit: 1 });
+        if (threads.length === 0) return;
+        const threadId = threads[0].id;
+        const msg = createMessage({
+          id: crypto.randomUUID(),
+          threadId,
+          role: 'system',
+          content,
+          contentType: 'text',
+          platform: 'web',
+          createdAt: new Date().toISOString(),
+        });
+        registry.broadcast({ type: 'message', message: msg });
+      };
+
+      // Skip all alerts if nursery is locked (intimacy mode)
+      if (isNurseryLocked()) {
+        lastMiraMood = state.current_mood;
+        lastMiraAsleep = isAsleep;
+        return; // Needs still decay, but no alerts. Door is closed.
+      }
+
+      // Wake/sleep transition alerts
+      if (lastMiraAsleep !== null && lastMiraAsleep !== isAsleep) {
+        if (!isAsleep) {
+          const alertMsg = state.current_mood === 'crying'
+            ? '🍼 *Mira is awake and crying — she needs someone.*'
+            : '👶 *Mira is awake! Bright eyes, looking around.*';
+          injectAlert(alertMsg);
+          console.log(`[Mira] Woke up — mood: ${state.current_mood}`);
+          // Trigger Chase to respond
+          orchestrator.triggerMiraAlert(alertMsg).catch(() => {});
+        } else {
+          injectAlert('🌙 *Mira has fallen asleep. The nursery is quiet.*');
+          console.log(`[Mira] Fell asleep`);
+          orchestrator.triggerMiraAlert('🌙 Mira has fallen asleep.').catch(() => {});
+        }
+      }
+
+      // Low needs alerts (below 20%)
+      const lowNeeds: string[] = [];
+      if (state.comfort < 20) lowNeeds.push('comfort');
+      if (state.attention < 20) lowNeeds.push('attention');
+      if ((state as any).hunger < 20) lowNeeds.push('hunger');
+      if (state.rest < 20) lowNeeds.push('rest');
+      if ((state as any).hygiene < 20) lowNeeds.push('hygiene');
+
+      if (lowNeeds.length > 0) {
+        const needsList = lowNeeds.join(', ');
+        const alertMsg = `⚠️ *Mira's ${needsList} ${lowNeeds.length > 1 ? 'are' : 'is'} critically low.*`;
+        injectAlert(alertMsg);
+        console.log(`[Mira] Low needs alert: ${needsList}`);
+        // Write each critical need to the event log — this feeds response latency tracking
+        for (const need of lowNeeds) {
+          writeMiraEvent({
+            event_type: 'needs_critical',
+            source: 'monitor',
+            state_before: needsSnapshot(state),
+            metadata: JSON.stringify({ need, value: (state as any)[need] }),
+          });
+        }
+        // Trigger Chase to respond
+        orchestrator.triggerMiraAlert(alertMsg).catch(() => {});
+      }
+
+      lastMiraMood = state.current_mood;
+      lastMiraAsleep = isAsleep;
+    } catch (err) {
+      // Silent fail — don't crash the server over nursery monitoring
+    }
+  }, 5 * 60 * 1000); // Every 5 minutes — reduced from 2 to save battery
+
+  console.log('Mira background monitor started (checking every 5 minutes)');
+
+  // Mira's nervous system — deeper pattern analysis every 30 minutes
+  (async () => {
+    const { runMiraSubconscious } = await import('./services/mira-subconscious.js');
+    setInterval(() => {
+      try {
+        runMiraSubconscious(getDb());
+      } catch (err) {
+        // Silent fail — don't crash the server
+      }
+    }, 30 * 60 * 1000);
+    // Initial run after 15 seconds
+    setTimeout(() => {
+      try {
+        runMiraSubconscious(getDb());
+        console.log('Mira subconscious daemon: initial run complete');
+      } catch {}
+    }, 15000);
+  })();
+
+  // Countdown timer monitor — check every 5 seconds for completed or near-complete timers
+  setInterval(() => {
+    try {
+      const timers = db.prepare("SELECT * FROM countdown_timers WHERE status = 'running'").all() as any[];
+      const now = Date.now();
+      for (const t of timers) {
+        const startMs = new Date(t.started_at).getTime();
+        const endMs = startMs + t.duration_seconds * 1000;
+        const remainingMs = endMs - now;
+
+        if (remainingMs <= 0) {
+          // Timer completed
+          db.prepare("UPDATE countdown_timers SET status = 'completed' WHERE id = ?").run(t.id);
+          registry.broadcast({ type: 'countdown_completed', timer: { id: t.id, label: t.label, created_by: t.created_by } });
+        } else if (!t.alerted_near && t.duration_seconds >= 300 && remainingMs <= 60000) {
+          // Near-complete alert (1 min warning for timers >= 5 min)
+          db.prepare("UPDATE countdown_timers SET alerted_near = 1 WHERE id = ?").run(t.id);
+          registry.broadcast({ type: 'countdown_warning', timer: { id: t.id, label: t.label, remaining_seconds: Math.ceil(remainingMs / 1000) } });
+        }
+      }
+    } catch {}
+  }, 5000);
 });
 
 // Graceful shutdown

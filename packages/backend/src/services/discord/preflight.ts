@@ -48,16 +48,21 @@ export async function preflight(batch: MessageBatch, pairingService: PairingServ
 
   // Guild message flow
   if (guildId) {
-    if (!userAllowed && !isGuildAllowed(guildId)) {
-      return { allowed: false, reason: 'Guild not on allowlist' };
+    if (serverRule?.ignoredUsers?.includes(userId)) {
+      return { allowed: false, reason: 'User is ignored in this server' };
     }
 
     if (userRule && !isUserAllowedInServer(userId, guildId)) {
       return { allowed: false, reason: 'User not allowed in this server by rules' };
     }
 
-    if (serverRule?.ignoredUsers?.includes(userId)) {
-      return { allowed: false, reason: 'User is ignored in this server' };
+    // Allow public responses when mentioned — check BEFORE guild allowlist gate
+    if (serverRule?.allowPublicResponses && mentionsBot(firstMessage)) {
+      return { allowed: true, reason: 'Public response allowed in this server' };
+    }
+
+    if (!userAllowed && !isGuildAllowed(guildId)) {
+      return { allowed: false, reason: 'Guild not on allowlist' };
     }
 
     const needsMention = requiresMention(channelId, guildId, DISCORD_CONFIG.requireMentionInGuilds);
@@ -67,10 +72,6 @@ export async function preflight(batch: MessageBatch, pairingService: PairingServ
 
     if (userAllowed || isGuildAllowed(guildId)) {
       return { allowed: true, reason: 'Guild message approved' };
-    }
-
-    if (serverRule?.allowPublicResponses && mentionsBot(firstMessage)) {
-      return { allowed: true, reason: 'Public response allowed in this server' };
     }
 
     return { allowed: false, reason: 'User not allowed in this guild' };

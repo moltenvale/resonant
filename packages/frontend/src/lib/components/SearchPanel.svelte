@@ -17,6 +17,9 @@
   }
 
   let query = $state('');
+  let afterDate = $state('');
+  let beforeDate = $state('');
+  let showDateFilters = $state(false);
   let results = $state<SearchHit[]>([]);
   let total = $state(0);
   let loading = $state(false);
@@ -38,7 +41,10 @@
     if (!q) return;
     loading = true;
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=30`);
+      let url = `/api/search?q=${encodeURIComponent(q)}&limit=30`;
+      if (afterDate) url += `&after=${encodeURIComponent(afterDate)}`;
+      if (beforeDate) url += `&before=${encodeURIComponent(beforeDate)}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Search failed');
       const data = await res.json();
       results = data.results;
@@ -49,6 +55,13 @@
       total = 0;
     } finally {
       loading = false;
+    }
+  }
+
+  function handleDateChange() {
+    if (query.trim()) {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => doSearch(), 300);
     }
   }
 
@@ -66,11 +79,12 @@
   function formatTime(ts: string): string {
     const d = new Date(ts);
     const now = new Date();
+    const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return d.toLocaleDateString('en-GB', { weekday: 'short' });
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    if (diffDays === 0) return time;
+    if (diffDays === 1) return `Yesterday ${time}`;
+    if (diffDays < 7) return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${time}`;
+    return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${time}`;
   }
 
   $effect(() => {
@@ -96,10 +110,29 @@
       {#if loading}
         <span class="search-spinner"></span>
       {/if}
+      <button class="search-filter-toggle" onclick={() => showDateFilters = !showDateFilters} aria-label="Toggle date filters" title="Filter by date">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </button>
       <button class="search-close" onclick={() => onclose?.()} aria-label="Close">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </div>
+
+    {#if showDateFilters}
+      <div class="search-date-filters">
+        <div class="date-field">
+          <label for="search-after">From</label>
+          <input id="search-after" type="datetime-local" bind:value={afterDate} onchange={handleDateChange} />
+        </div>
+        <div class="date-field">
+          <label for="search-before">To</label>
+          <input id="search-before" type="datetime-local" bind:value={beforeDate} onchange={handleDateChange} />
+        </div>
+        {#if afterDate || beforeDate}
+          <button class="date-clear" onclick={() => { afterDate = ''; beforeDate = ''; handleDateChange(); }}>Clear</button>
+        {/if}
+      </div>
+    {/if}
 
     {#if results.length > 0}
       <div class="search-results">
@@ -196,6 +229,81 @@
 
   .search-close:hover {
     color: var(--text-primary);
+  }
+
+  .search-filter-toggle {
+    flex-shrink: 0;
+    padding: 0.25rem;
+    color: var(--text-muted);
+    border-radius: 0.25rem;
+    transition: color 0.15s;
+  }
+
+  .search-filter-toggle:hover {
+    color: var(--gold);
+  }
+
+  .search-date-filters {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .date-field {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .date-field label {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .date-field input[type="datetime-local"] {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    color: var(--text-primary);
+    font-size: 0.75rem;
+    padding: 0.25rem 0.375rem;
+    outline: none;
+    font-family: var(--font-body);
+    color-scheme: dark;
+  }
+
+  .date-field input[type="datetime-local"]:focus {
+    border-color: var(--gold-dim);
+  }
+
+  @media (max-width: 600px) {
+    .search-date-filters {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .date-field {
+      width: 100%;
+    }
+    .date-field input[type="datetime-local"] {
+      flex: 1;
+    }
+  }
+
+  .date-clear {
+    font-size: 0.6875rem;
+    color: var(--gold-dim);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    transition: color 0.15s;
+  }
+
+  .date-clear:hover {
+    color: var(--gold);
   }
 
   .search-spinner {

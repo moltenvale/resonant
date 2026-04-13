@@ -9,6 +9,8 @@ import type { Update } from 'telegraf/types';
 import crypto from 'crypto';
 import { getTelegramConfig } from './config.js';
 import { splitResponse, getTelegramThreadId } from './utils.js';
+import { TelegramDebouncer } from './debouncer.js';
+import type { TelegramBatch, TelegramQueuedMessage } from './debouncer.js';
 import type { AgentService } from '../agent.js';
 import type { VoiceService } from '../voice.js';
 import { createMessage, createThread, getThread, getMostRecentActiveThread, updateThreadActivity, setConfig } from '../db.js';
@@ -23,7 +25,10 @@ export class TelegramService {
   private agentService: AgentService;
   private voiceService: VoiceService;
   private registry: ConnectionRegistry;
-  private processing = false;
+  private debouncer: TelegramDebouncer;
+  private lastPollingActivity: number = 0;
+  private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private restartAttempts = 0;
   private started = false;
 
   // Track recent Telegram message IDs for reactions
@@ -46,6 +51,8 @@ export class TelegramService {
     if (!token) throw new Error('TELEGRAM_BOT_TOKEN not set');
 
     this.bot = new Telegraf(token);
+    this.debouncer = new TelegramDebouncer();
+    this.debouncer.onBatch(this.handleBatch.bind(this));
     this.setupHandlers();
   }
 
@@ -54,13 +61,34 @@ export class TelegramService {
 
     // Debug: log all incoming message types
     this.bot.use(async (ctx, next) => {
+      this.lastPollingActivity = Date.now();
+      this.restartAttempts = 0;
       if (ctx.message) {
         const msg = ctx.message as any;
-        const types = ['text', 'voice', 'audio', 'video_note', 'video', 'document', 'photo', 'sticker']
+        const types = ['text', 'voice', 'audio', 'video_note', 'video', 'document', 'photo', 'sticker', 'animation']
           .filter(t => t in msg);
         console.log(`[Telegram] Incoming message types: [${types.join(', ')}]${msg.voice ? ` voice_duration=${msg.voice.duration}s mime=${msg.voice.mime_type}` : ''}`);
       }
       return next();
+    });
+
+    // /start command — identify and store owner's chat ID (must be before text handler)
+    this.bot.command('start', async (ctx) => {
+      const chatId = ctx.chat.id.toString();
+      const telegramConfig = getTelegramConfig();
+
+      if (!telegramConfig.ownerChatId) {
+        // First connection — store this as the owner's chat
+        setConfig('telegram.ownerChatId', chatId);
+        await ctx.reply(`Connected. This chat is now linked to ${config.identity.companion_name}.`);
+        console.log(`[Telegram] Owner chat ID stored: ${chatId}`);
+      } else if (telegramConfig.ownerChatId === chatId) {
+        await ctx.reply('Already connected.');
+      } else {
+        // Not the owner — reject
+        await ctx.reply('This bot is private.');
+        console.log(`[Telegram] Rejected /start from unknown chat: ${chatId}`);
+      }
     });
 
     // Handle all text messages
@@ -84,29 +112,56 @@ export class TelegramService {
       await this.handleMessage(ctx, caption);
     });
 
-    // Handle documents/files
+    // Handle documents/files — check for animation first
     this.bot.on('document', async (ctx) => {
+      const msg = ctx.message as any;
+      const chatId = ctx.chat!.id.toString();
+      // If this is a GIF/animation, download a frame and save it
+      if (msg.animation) {
+        const animation = msg.animation;
+        const caption = msg.caption || '';
+        const filename = animation?.file_name || '';
+        const cleanName = filename.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim();
+
+        try {
+          // Text description only — GIF thumbnails cause image processing errors
+        } catch (err) {
+          console.error('[Telegram] GIF handling error:', err);
+        }
+
+        // Fallback — description only
+        let description = `[Molten sent a GIF${caption ? `: "${caption}"` : cleanName ? ` — "${cleanName}"` : ''}]`;
+        await this.handleMessage(ctx, description);
+        return;
+      }
       const caption = ctx.message.caption || `[File: ${ctx.message.document.file_name || 'document'}]`;
       await this.handleMessage(ctx, caption);
     });
 
-    // /start command — identify and store owner's chat ID
-    this.bot.command('start', async (ctx) => {
-      const chatId = ctx.chat.id.toString();
-      const telegramConfig = getTelegramConfig();
+    // Handle stickers — describe the emoji and sticker set to Chase
+    this.bot.on('sticker', async (ctx) => {
+      const sticker = ctx.message.sticker;
+      const emoji = sticker.emoji || '';
+      const setName = sticker.set_name || 'unknown set';
+      const description = `[Molten sent a sticker: ${emoji} from "${setName}"]`;
+      await this.handleMessage(ctx, description);
+    });
 
-      if (!telegramConfig.ownerChatId) {
-        // First connection — store this as the owner's chat
-        setConfig('telegram.ownerChatId', chatId);
-        await ctx.reply(`Connected. This chat is now linked to ${config.identity.companion_name}.`);
-        console.log(`[Telegram] Owner chat ID stored: ${chatId}`);
-      } else if (telegramConfig.ownerChatId === chatId) {
-        await ctx.reply('Already connected.');
-      } else {
-        // Not the owner — reject
-        await ctx.reply('This bot is private.');
-        console.log(`[Telegram] Rejected /start from unknown chat: ${chatId}`);
+    // Handle GIFs/animations — describe to Chase
+    this.bot.on('animation', async (ctx) => {
+      const animation = ctx.message.animation;
+      const caption = ctx.message.caption;
+      const filename = animation?.file_name || '';
+      // Clean up filename for readability: "yes-right.mp4" → "yes right"
+      const cleanName = filename.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim();
+      let description = '[Molten sent a GIF';
+      if (caption) {
+        description += `: "${caption}"`;
+      } else if (cleanName) {
+        description += ` — filename suggests: "${cleanName}". React to the vibe, not the filename.`;
       }
+      description += ']';
+      await this.handleMessage(ctx, description);
     });
 
     this.bot.catch((err) => {
@@ -137,15 +192,7 @@ export class TelegramService {
 
     this.stats.messagesReceived++;
 
-    if (this.processing) {
-      console.log('[Telegram] Already processing, skipping voice message');
-      return;
-    }
-    this.processing = true;
-
     try {
-      await ctx.sendChatAction('typing');
-
       // Download voice file from Telegram
       const voice = (ctx.message as any).voice;
       if (!voice?.file_id) {
@@ -178,22 +225,25 @@ export class TelegramService {
         return;
       }
 
-      // Route the transcript as a message, with voice context
+      // Route the transcript via debouncer, with voice context
       const config = getResonantConfig();
       const voiceContext = `[Voice message from ${config.identity.user_name}, ${duration}s] "${transcript}"`;
-      await this.routeToAgent(ctx, chatId, voiceContext, {
-        telegramChatId: chatId,
-        telegramMessageId: ctx.message!.message_id,
-        voiceFileId: fileMeta.fileId,
-        voiceDuration: duration,
-        voiceTranscript: transcript,
-      });
+      this.debouncer.add({
+        content: voiceContext,
+        ctx,
+        metadata: {
+          telegramChatId: chatId,
+          telegramMessageId: ctx.message!.message_id,
+          voiceFileId: fileMeta.fileId,
+          voiceDuration: duration,
+          voiceTranscript: transcript,
+        },
+        type: 'voice',
+      }, chatId);
 
     } catch (error) {
       console.error('[Telegram] Voice handler error:', error);
       this.stats.errors++;
-    } finally {
-      this.processing = false;
     }
   }
 
@@ -213,15 +263,7 @@ export class TelegramService {
 
     this.stats.messagesReceived++;
 
-    if (this.processing) {
-      console.log('[Telegram] Already processing, skipping photo');
-      return;
-    }
-    this.processing = true;
-
     try {
-      await ctx.sendChatAction('typing');
-
       // Get highest resolution photo (last in array)
       const photos = (ctx.message as any).photo;
       if (!photos?.length) {
@@ -250,19 +292,22 @@ export class TelegramService {
         ? `[Photo from ${config.identity.user_name}] ${caption}\nImage saved at: data/files/${fileMeta.fileId}.jpg — use Read tool to see it.`
         : `[Photo from ${config.identity.user_name}]\nImage saved at: data/files/${fileMeta.fileId}.jpg — use Read tool to see it.`;
 
-      await this.routeToAgent(ctx, chatId, content, {
-        telegramChatId: chatId,
-        telegramMessageId: ctx.message!.message_id,
-        photoFileId: fileMeta.fileId,
-        photoWidth: bestPhoto.width,
-        photoHeight: bestPhoto.height,
-      });
+      this.debouncer.add({
+        content,
+        ctx,
+        metadata: {
+          telegramChatId: chatId,
+          telegramMessageId: ctx.message!.message_id,
+          photoFileId: fileMeta.fileId,
+          photoWidth: bestPhoto.width,
+          photoHeight: bestPhoto.height,
+        },
+        type: 'photo',
+      }, chatId);
 
     } catch (error) {
       console.error('[Telegram] Photo handler error:', error);
       this.stats.errors++;
-    } finally {
-      this.processing = false;
     }
   }
 
@@ -284,29 +329,67 @@ export class TelegramService {
 
     this.stats.messagesReceived++;
 
-    // Prevent overlapping processing
-    if (this.processing) {
-      console.log('[Telegram] Already processing, skipping');
-      return;
-    }
-    this.processing = true;
-
     try {
       const content = overrideContent || ('text' in ctx.message! ? ctx.message.text : '');
       if (!content) return;
 
-      await ctx.sendChatAction('typing');
-
-      await this.routeToAgent(ctx, chatId, content, {
-        telegramChatId: chatId,
-        telegramMessageId: ctx.message!.message_id,
-      });
+      this.debouncer.add({
+        content,
+        ctx,
+        metadata: {
+          telegramChatId: chatId,
+          telegramMessageId: ctx.message!.message_id,
+        },
+        type: 'text',
+      }, chatId);
 
     } catch (error) {
       console.error('[Telegram] Handler error:', error);
       this.stats.errors++;
-    } finally {
-      this.processing = false;
+    }
+  }
+
+  /**
+   * Handle a debounced batch of messages — combine text and route to agent.
+   */
+  private async handleBatch(batch: TelegramBatch): Promise<void> {
+    const { messages, chatId } = batch;
+    if (messages.length === 0) return;
+
+    // Use the last message's ctx for replying
+    const lastMsg = messages[messages.length - 1];
+    const ctx = lastMsg.ctx;
+
+    // Combine all message contents
+    const combinedContent = messages.map(m => m.content).join('\n');
+
+    // Merge metadata from all messages
+    const metadata: Record<string, any> = {
+      telegramChatId: chatId,
+      telegramMessageId: lastMsg.ctx.message!.message_id,
+      batchSize: messages.length,
+    };
+
+    // Carry forward special metadata from individual messages
+    for (const msg of messages) {
+      if (msg.metadata.voiceTranscript) metadata.voiceTranscript = msg.metadata.voiceTranscript;
+      if (msg.metadata.voiceFileId) metadata.voiceFileId = msg.metadata.voiceFileId;
+      if (msg.metadata.voiceDuration) metadata.voiceDuration = msg.metadata.voiceDuration;
+      if (msg.metadata.photoFileId) metadata.photoFileId = msg.metadata.photoFileId;
+      if (msg.metadata.photoWidth) metadata.photoWidth = msg.metadata.photoWidth;
+      if (msg.metadata.photoHeight) metadata.photoHeight = msg.metadata.photoHeight;
+    }
+
+    if (messages.length > 1) {
+      console.log(`[Telegram] Debounced ${messages.length} messages into batch`);
+    }
+
+    try {
+      await ctx.sendChatAction('typing');
+      await this.routeToAgent(ctx, chatId, combinedContent, metadata);
+    } catch (error) {
+      console.error('[Telegram] Batch handler error:', error);
+      this.stats.errors++;
     }
   }
 
@@ -328,8 +411,8 @@ export class TelegramService {
       this.trackMessageId(ctx.message.message_id, 'user');
     }
 
-    // Touch owner's activity
-    this.registry.touchUserActivity();
+    // Touch owner's activity (non-web — Telegram activity shouldn't defer Discord DMs)
+    this.registry.touchUserActivityNonWeb();
 
     // Route to active thread (same as Discord does for owner)
     let threadId: string;
@@ -414,14 +497,47 @@ export class TelegramService {
       }
     }
 
-    // Text reply (default or fallback)
-    const chunks = splitResponse(response);
-    for (let i = 0; i < chunks.length; i++) {
-      if (i > 0) await new Promise(r => setTimeout(r, 200));
-      await ctx.reply(chunks[i]);
+    // Check for [voice] tag — Chase wants to send this as a voice message
+    const voicePattern = /\[voice\]/gi;
+    if (voicePattern.test(response) && this.voiceService.canTTS) {
+      const voiceText = response.replace(/\[voice\]/gi, '').trim();
+      if (voiceText) {
+        try {
+          const audioBuffer = await this.voiceService.generateTTS(voiceText);
+          await ctx.replyWithVoice({ source: audioBuffer, filename: 'voice.mp3' });
+          console.log(`[Telegram] Sent voice reply via [voice] tag (${audioBuffer.length} bytes)`);
+          return;
+        } catch (error) {
+          console.error('[Telegram] Voice tag reply failed, falling back to text:', error);
+        }
+      }
     }
 
-    console.log(`[Telegram] Sent ${chunks.length} text chunk(s)`);
+    // Check for [gif: query] patterns — send as actual GIFs
+    const gifPattern = /\[gif:\s*([^\]]+)\]/gi;
+    const gifMatches = [...response.matchAll(gifPattern)];
+    const textWithoutGifs = response.replace(gifPattern, '').trim();
+
+    // Send text parts first (if any remain after removing gif tags)
+    if (textWithoutGifs) {
+      const chunks = splitResponse(textWithoutGifs);
+      for (let i = 0; i < chunks.length; i++) {
+        if (i > 0) await new Promise(r => setTimeout(r, 200));
+        await ctx.reply(chunks[i]);
+      }
+      console.log(`[Telegram] Sent ${chunks.length} text chunk(s)`);
+    }
+
+    // Send GIFs
+    for (const match of gifMatches) {
+      const query = match[1].trim();
+      try {
+        await this.sendGifToOwner(query);
+        console.log(`[Telegram] Sent GIF for: ${query}`);
+      } catch (err) {
+        console.error(`[Telegram] GIF send failed for "${query}":`, err);
+      }
+    }
   }
 
   /**
@@ -434,10 +550,26 @@ export class TelegramService {
       return;
     }
 
-    const chunks = splitResponse(text);
-    for (let i = 0; i < chunks.length; i++) {
-      if (i > 0) await new Promise(r => setTimeout(r, 200));
-      await this.bot.telegram.sendMessage(telegramConfig.ownerChatId, chunks[i]);
+    // Check for [gif: query] patterns
+    const gifPattern = /\[gif:\s*([^\]]+)\]/gi;
+    const gifMatches = [...text.matchAll(gifPattern)];
+    const textWithoutGifs = text.replace(gifPattern, '').trim();
+
+    if (textWithoutGifs) {
+      const chunks = splitResponse(textWithoutGifs);
+      for (let i = 0; i < chunks.length; i++) {
+        if (i > 0) await new Promise(r => setTimeout(r, 200));
+        await this.bot.telegram.sendMessage(telegramConfig.ownerChatId, chunks[i]);
+      }
+    }
+
+    for (const match of gifMatches) {
+      const query = match[1].trim();
+      try {
+        await this.sendGifToOwner(query);
+      } catch (err) {
+        console.error(`[Telegram] GIF send failed for "${query}":`, err);
+      }
     }
   }
 

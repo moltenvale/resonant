@@ -1,10 +1,18 @@
 <script lang="ts">
-  import { login } from '$lib/stores/auth.svelte';
+  import { login, checkAuth, isAuthenticated, isAuthRequired } from '$lib/stores/auth.svelte';
   import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
 
   let password = $state('');
   let error = $state('');
   let loading = $state(false);
+
+  onMount(async () => {
+    await checkAuth();
+    if (isAuthenticated() || !isAuthRequired()) {
+      goto('/chat');
+    }
+  });
 
   function toggleTheme() {
     const html = document.documentElement;
@@ -39,7 +47,7 @@
     </svg>
   </button>
   <div class="login-space">
-    <h1 class="name">Resonant</h1>
+    <h1 class="name">Virelia</h1>
 
     <form onsubmit={handleSubmit}>
       <input

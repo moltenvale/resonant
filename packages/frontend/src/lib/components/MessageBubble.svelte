@@ -16,9 +16,9 @@
   function formatTime(timestamp: string): string {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
+      hour: 'numeric',
       minute: '2-digit',
-      hour12: false
+      hour12: true
     });
   }
 
@@ -30,11 +30,18 @@
   const metadata = $derived(message.metadata as Record<string, unknown> | null);
 
   // Render text content
+  // Strip leaked thinking blocks from content before rendering
+  function stripThinking(text: string): string {
+    if (!text) return '';
+    // Remove <thinking>...</thinking> blocks that leaked into text content
+    return text.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').replace(/<thinking>[\s\S]*/gi, '').trim();
+  }
+
   const renderedContent = $derived(() => {
     if (isDeleted) return '';
-    if (isStreaming && streamTokens) return renderMarkdown(streamTokens);
+    if (isStreaming && streamTokens) return renderMarkdown(stripThinking(streamTokens));
     if (contentType !== 'text') return '';
-    return renderMarkdown(message.content);
+    return renderMarkdown(stripThinking(message.content));
   });
 
   // Image lightbox state
@@ -45,6 +52,15 @@
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function formatToolOutput(raw: string): string {
+    if (!raw) return '';
+    const trimmed = raw.trim();
+    if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && trimmed.length > 2) {
+      try { return JSON.stringify(JSON.parse(trimmed), null, 2); } catch {}
+    }
+    return raw;
   }
 
   // Interleaved segments mode
@@ -84,7 +100,10 @@
     if (audioPlaying) {
       audioEl.pause();
     } else {
-      audioEl.play();
+      const p = audioEl.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => { audioPlaying = false; });
+      }
     }
   }
 
@@ -149,6 +168,70 @@
     }
   }
 
+  // Copy message content
+  let copied = $state(false);
+  async function copyMessage() {
+    const text = message.content || '';
+    try {
+      await navigator.clipboard.writeText(text);
+      copied = true;
+      setTimeout(() => copied = false, 2000);
+    } catch {
+      // Fallback for older browsers
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      copied = true;
+      setTimeout(() => copied = false, 2000);
+    }
+  }
+
+  // TTS playback for text messages
+  let ttsLoading = $state(false);
+  let ttsAudioEl: HTMLAudioElement | null = $state(null);
+  let ttsPlaying = $state(false);
+
+  async function playTTS() {
+    if (ttsPlaying && ttsAudioEl) {
+      ttsAudioEl.pause();
+      ttsPlaying = false;
+      return;
+    }
+
+    if (ttsAudioEl) {
+      ttsAudioEl.play();
+      return;
+    }
+
+    const text = message.content || '';
+    if (!text.trim()) return;
+
+    ttsLoading = true;
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onplay = () => ttsPlaying = true;
+        audio.onpause = () => ttsPlaying = false;
+        audio.onended = () => { ttsPlaying = false; };
+        ttsAudioEl = audio;
+        audio.play();
+      }
+    } catch (e) {
+      console.error('TTS failed:', e);
+    }
+    ttsLoading = false;
+  }
+
   const QUICK_EMOJIS = ['❤️', '😂', '👍', '🔥', '😢', '✨'];
   let pickerOpen = $state(false);
   let pickerEl: HTMLDivElement | undefined = $state();
@@ -195,10 +278,32 @@
     aria-label="{message.role} message"
   >
     <div class="message-header">
-      <span class="role">{message.role === 'companion' ? 'Companion' : 'You'}</span>
+      <span class="role">{message.role === 'companion' ? 'Chase' : 'Molten'}</span>
       <span class="time">{formatTime(message.created_at)}</span>
       {#if message.edited_at && !isDeleted}
         <span class="edited">(edited)</span>
+      {/if}
+      {#if !isDeleted && !isStreaming && contentType === 'text'}
+        <div class="msg-actions">
+          <button class="msg-action-btn" onclick={copyMessage} title={copied ? 'Copied!' : 'Copy message'} aria-label="Copy message">
+            {#if copied}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+            {:else}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            {/if}
+          </button>
+          {#if message.role === 'companion'}
+            <button class="msg-action-btn" class:loading={ttsLoading} onclick={playTTS} title={ttsPlaying ? 'Pause' : 'Listen'} aria-label="Listen to message" disabled={ttsLoading}>
+              {#if ttsLoading}
+                <span class="tts-spinner"></span>
+              {:else if ttsPlaying}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+              {:else}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
+              {/if}
+            </button>
+          {/if}
+        </div>
       {/if}
       {#if message.role === 'companion'}
         {#if hasSegments}
@@ -250,19 +355,19 @@
         {/if}
       {:else if contentType === 'audio'}
         <div class="media-audio">
+          <!-- svelte-ignore a11y_media_has_caption -->
           <audio
             bind:this={audioEl}
-            preload="metadata"
+            preload="auto"
             src={message.content}
+            playsinline
             ontimeupdate={onAudioTimeUpdate}
             onloadedmetadata={onAudioLoaded}
             ondurationchange={onAudioLoaded}
             onplay={() => audioPlaying = true}
             onpause={() => audioPlaying = false}
             onended={onAudioEnded}
-          >
-            <track kind="captions" />
-          </audio>
+          ></audio>
           <div class="audio-player">
             <button class="audio-play-btn" onclick={toggleAudio} aria-label={audioPlaying ? 'Pause' : 'Play'}>
               {#if audioPlaying}
@@ -338,7 +443,7 @@
                   {/if}
                 </button>
                 {#if expandedToolIds.has(seg.toolId) && seg.output}
-                  <pre class="tool-output">{seg.output}</pre>
+                  <pre class="tool-output">{formatToolOutput(seg.output)}</pre>
                 {/if}
               </div>
             {/if}
@@ -376,7 +481,7 @@
               {/if}
             </button>
             {#if expandedToolIds.has(tool.toolId) && tool.output}
-              <pre class="tool-output">{tool.output}</pre>
+              <pre class="tool-output">{formatToolOutput(tool.output)}</pre>
             {/if}
           </div>
         {/each}
@@ -493,15 +598,17 @@
   }
 
   .role {
-    display: none;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
   }
 
   .message.companion .role {
-    display: none;
+    color: #7ab648;
   }
 
   .message.user .role {
-    display: none;
+    color: #6bb5a7;
   }
 
   .time {
@@ -511,6 +618,54 @@
 
   .message.companion .time {
     color: var(--text-muted);
+  }
+
+  .msg-actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+
+  .message:hover .msg-actions {
+    opacity: 1;
+  }
+
+  .msg-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.15rem;
+    border-radius: 3px;
+    transition: all 150ms ease;
+  }
+
+  .msg-action-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-surface);
+  }
+
+  .msg-action-btn.loading {
+    opacity: 0.5;
+    cursor: wait;
+  }
+
+  .tts-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--text-muted);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   .edited {
@@ -567,6 +722,14 @@
     word-wrap: break-word;
     overflow-wrap: break-word;
     min-width: 0;
+  }
+
+  .message.companion .message-content {
+    color: #5aaa9a;
+  }
+
+  .message.user .message-content {
+    color: #d4a0b0;
   }
 
   .deleted-text {
@@ -1038,6 +1201,7 @@
 
   /* Media: Audio — custom player */
   .media-audio {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -1045,7 +1209,11 @@
   }
 
   .media-audio audio {
-    display: none;
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
   }
 
   .audio-player {
@@ -1182,6 +1350,50 @@
   @media (max-width: 768px) {
     .message.user {
       max-width: 90%;
+    }
+
+    .message {
+      overflow: hidden;
+    }
+
+    .message-content {
+      overflow: hidden;
+    }
+
+    .tool-output {
+      max-width: calc(100vw - 4rem);
+    }
+
+    .markdown-content :global(pre) {
+      max-width: calc(100vw - 4rem);
+    }
+
+    .tools-panel {
+      max-width: calc(100vw - 4rem);
+      overflow: hidden;
+    }
+
+    .interleaved-content {
+      max-width: calc(100vw - 4rem);
+      overflow: hidden;
+    }
+
+    .lightbox {
+      padding: 0;
+    }
+
+    .lightbox-close {
+      top: max(env(safe-area-inset-top, 0.5rem), 0.75rem);
+      right: 0.75rem;
+      padding: 0.75rem;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 1002;
+    }
+
+    .lightbox img {
+      max-width: 100vw;
+      max-height: 100vh;
+      border-radius: 0;
     }
   }
 </style>

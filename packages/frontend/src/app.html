@@ -2,29 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#111111" />
-    <meta name="description" content="Resonant — AI Companion" />
+    <meta name="description" content="Virelia — AI Companion" />
     <link rel="icon" href="/favicon.png" />
     <link rel="manifest" href="/manifest.json" />
     <!-- iOS PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Resonant" />
+    <meta name="apple-mobile-web-app-title" content="Virelia" />
     <link rel="apple-touch-icon" href="/icons/icon-180.png" />
     <!-- Optional: load custom fonts for your theme. Default uses system fonts. -->
     <!-- <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" /> -->
-    <title>Resonant</title>
+    <title>Virelia</title>
     <script>
-      // Apply saved theme or respect OS preference before first paint
+      // Apply saved theme before first paint — default to dark if no preference saved
       (function() {
         const saved = localStorage.getItem('resonant-theme');
-        if (saved === 'light' || saved === 'dark') {
-          document.documentElement.setAttribute('data-theme', saved);
-        }
-        // If no saved preference, the CSS prefers-color-scheme media query handles it
+        document.documentElement.setAttribute('data-theme', (saved === 'light' || saved === 'dark') ? saved : 'dark');
       })();
     </script>
     %sveltekit.head%

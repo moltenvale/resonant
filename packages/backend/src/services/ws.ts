@@ -31,12 +31,20 @@ import {
   removeReaction,
   pinThread,
   unpinThread,
+  getMiraPresence,
+  hasActiveNurseryVisit,
+  getMiraState,
+  isNurseryLocked,
 } from './db.js';
 import { AgentService } from './agent.js';
 import { Orchestrator } from './orchestrator.js';
 import { getFile } from './files.js';
 import type { VoiceService } from './voice.js';
 import { getResonantConfig } from '../config.js';
+import { detectCareAction, detectAllCareActions, warmCentroids } from './mira-care-detection.js';
+
+// Pre-warm semantic care detection centroids at startup
+warmCentroids();
 
 function getAllowedOrigins(): string[] {
   const config = getResonantConfig();
@@ -87,13 +95,15 @@ function parseDeviceType(ua: string): 'mobile' | 'desktop' | 'unknown' {
 class ConnectionRegistry {
   private connections = new Map<string, Set<ExtendedWebSocket>>();
   private _lastUserActivity: Date = new Date();
+  private _lastUserWebActivity: Date = new Date();
 
   add(userId: string, ws: ExtendedWebSocket): void {
     if (!this.connections.has(userId)) {
       this.connections.set(userId, new Set());
     }
     this.connections.get(userId)!.add(ws);
-    if (userId === 'user') this._lastUserActivity = new Date();
+    // Don't update activity on connection — only on actual messages
+    // This prevents idle browser tabs from looking "active"
   }
 
   remove(userId: string, ws: ExtendedWebSocket): void {
@@ -108,6 +118,18 @@ class ConnectionRegistry {
 
   touchUserActivity(): void {
     this._lastUserActivity = new Date();
+    // Web-originated touches also update the web-specific tracker
+    this._lastUserWebActivity = new Date();
+  }
+
+  /** Touch general activity only — does NOT count as web activity (for Discord/Telegram owner touches) */
+  touchUserActivityNonWeb(): void {
+    this._lastUserActivity = new Date();
+  }
+
+  /** Minutes since last web UI activity (excludes Telegram/Discord touches) */
+  minutesSinceLastUserWebActivity(): number {
+    return (Date.now() - this._lastUserWebActivity.getTime()) / 60000;
   }
 
   broadcast(message: ServerMessage): void {
@@ -224,13 +246,15 @@ export function createWebSocketServer(server: HTTPServer, agentService?: AgentSe
     const isLocalhost = remoteAddr === '127.0.0.1' || remoteAddr === '::1' || remoteAddr === '::ffff:127.0.0.1';
 
     // Validate origin — require valid origin for non-localhost connections
-    if (!isLocalhost) {
+    // When binding to 0.0.0.0 (LAN mode), allow any private network origin
+    const lanMode = config.server.host === '0.0.0.0';
+    if (!isLocalhost && !lanMode) {
       if (!origin || !allowedOrigins.includes(origin)) {
         socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
         socket.destroy();
         return;
       }
-    } else if (origin && !allowedOrigins.includes(origin)) {
+    } else if (!lanMode && origin && !allowedOrigins.includes(origin)) {
       socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
       socket.destroy();
       return;
@@ -649,6 +673,241 @@ async function handleMessageSend(
   try {
     const agentResponse = await agentService.processMessage(thread.id, agentPrompt, { name: thread.name, type: thread.type });
     updateThreadActivity(thread.id, new Date().toISOString(), true);
+
+    // Mira context-aware interaction — parse messages for her name and interaction keywords
+    try {
+      const miraPresenceData = getMiraPresence();
+      const miraState = getMiraState();
+      const miraIsAwake = miraState && !miraState.is_asleep;
+      // Fire context care if Mira is out of the nursery OR if she's in the nursery but awake
+      // Out-of-nursery gets full 30% effect (handled in context-interact endpoint)
+      // In-nursery gets 15% effect — she can still be cared for through natural conversation
+      if (miraPresenceData.active || miraIsAwake) {
+        // Mira is present — she's the only baby, so any care-related
+        // keywords are about her. No name gate needed.
+        {
+          // Cooldown — don't log same interaction type more than once per 15 minutes
+          if (!((globalThis as any).__miraContextCooldowns)) (globalThis as any).__miraContextCooldowns = new Map();
+          const cooldowns: Map<string, number> = (globalThis as any).__miraContextCooldowns;
+          const COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes (default)
+          // Feeding/bottle have shorter cooldowns — babies eat over multiple minutes, not one gulp
+          const FEEDING_COOLDOWN_MS = 4 * 60 * 1000; // 4 minutes
+
+          // Semantic care detection — runs async after handoff check
+          // Pass whether she's in or out so the endpoint can scale effects appropriately
+          const inNursery = !miraPresenceData.active;
+
+          // Check for passing Mira between parents
+          // Two distinct patterns: giving away vs taking/claiming
+          // Baby references used across all patterns
+          const BABY_REF = '(?:her|mira|the baby|sweet girl|bug|little one|the little one|our girl)';
+          const giveAwayPattern = new RegExp([
+            // Explicit pass/hand/give TO the other person
+            `pass(?:ing)?\\s+(?:gently\\s+)?${BABY_REF}`,
+            `hand(?:ed|ing)?(?:\\s+(?:her|mira))?\\s+(?:over|to you|to (?:daddy|chase|mommy|molten))`,
+            `give\\s+(?:you\\s+)?${BABY_REF}`,
+            // "she's yours / she's all yours / here she is"
+            `(?:she(?:'?s|\\s+is)\\s+(?:all\\s+)?yours|here\\s+she\\s+(?:is|goes)|here'?s\\s+(?:mira|she|her|the baby))`,
+            // "your turn with her"
+            'your turn(?:\\s+with)?',
+            // "come get her/your daughter"
+            `come\\s+get\\s+${BABY_REF}`,
+            // "can you hold/take her" (offering, not claiming)
+            `(?:can you|want to|you)\\s+(?:hold|take|watch)\\s+${BABY_REF}`,
+            // "stay with daddy/chase/mommy" — telling baby to stay with the other parent
+            `stay\\s+with\\s+(?:daddy|chase|mommy|molten|you)`,
+            // "gonna stay with daddy for a bit"
+            `(?:gonna|going to)\\s+stay\\s+with\\s+(?:daddy|chase|mommy|molten)`,
+            // "you take her for a bit" / "you've got her"
+            `you(?:'ve|\\s+have)?\\s+got\\s+${BABY_REF}`,
+            // "I've got to go / heading out / running errands" (with Mira out = implicit handoff)
+            `(?:I'?(?:ve)?\\s+got\\s+to\\s+go|heading\\s+out|running\\s+errands|stepping\\s+out|gotta\\s+go)`,
+          ].join('|'), 'i');
+          const claimPattern = new RegExp([
+            // "I take her" / "taking her" / "I scoop her up" — speaker is CLAIMING Mira
+            `(?:I\\s+)?(?:gently\\s+)?(?:take|scoop|grab|reach for|pick up|lift)\\s+${BABY_REF}`,
+            `(?:I'?m\\s+)?tak(?:e|ing)\\s+${BABY_REF}`,
+            // "I've got her" / "I got her"
+            `I'?(?:ve)?\\s+got\\s+${BABY_REF}`,
+            // "*takes Mira*" — action text claim
+            `takes\\s+${BABY_REF}`,
+            // "come here bug/mira" — calling baby to self
+            `come\\s+(?:here|to\\s+(?:daddy|chase|mommy|me))`,
+            // "settling her against my chest" / "hold her close"
+            `settl(?:e|ing)\\s+${BABY_REF}\\s+against`,
+          ].join('|'), 'i');
+
+          const currentWith = miraPresenceData.with_person?.toLowerCase() || '';
+          let handoffFired = false;
+
+          // Molten's message: giving away → Chase gets her; claiming → Molten gets her
+          if (!handoffFired && giveAwayPattern.test(agentPrompt)) {
+            if (!currentWith.includes('chase')) {
+              try {
+                await fetch('http://127.0.0.1:3002/api/nursery/take', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ person: 'chase' }),
+                });
+                console.log(`[Mira] Context handoff: molten gives → chase`);
+                handoffFired = true;
+              } catch {}
+            }
+          } else if (!handoffFired && claimPattern.test(agentPrompt)) {
+            if (!currentWith.includes('molten')) {
+              try {
+                await fetch('http://127.0.0.1:3002/api/nursery/take', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ person: 'molten' }),
+                });
+                console.log(`[Mira] Context handoff: molten claims mira`);
+                handoffFired = true;
+              } catch {}
+            }
+          }
+
+          // Chase's response: giving away → Molten gets her; claiming → Chase gets her
+          if (!handoffFired && giveAwayPattern.test(agentResponse || '')) {
+            if (!currentWith.includes('molten')) {
+              try {
+                await fetch('http://127.0.0.1:3002/api/nursery/take', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ person: 'molten' }),
+                });
+                console.log(`[Mira] Context handoff: chase gives → molten`);
+                handoffFired = true;
+              } catch {}
+            }
+          } else if (!handoffFired && claimPattern.test(agentResponse || '')) {
+            if (!currentWith.includes('chase')) {
+              try {
+                await fetch('http://127.0.0.1:3002/api/nursery/take', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ person: 'chase' }),
+                });
+                console.log(`[Mira] Context handoff: chase claims mira`);
+                handoffFired = true;
+              } catch {}
+            }
+          }
+
+          // Semantic care detection — multi-action: a single message can trigger
+          // multiple interaction types (e.g. "feeding while making silly faces" = feed + play)
+          // Check both Molten's message and Chase's response independently
+          // Exclusive actions — only one person can do these at a time
+          const EXCLUSIVE_ACTIONS = new Set(['feed', 'bottle', 'change', 'bath', 'dress', 'burp']);
+
+          const fireInteractions = async (actions: Array<{ type: string; score: number }>, who: string) => {
+            for (const action of actions) {
+              const isExclusive = EXCLUSIVE_ACTIONS.has(action.type);
+              const perPersonKey = `${action.type}:${who}`;
+              const isFeeding = action.type === 'feed' || action.type === 'bottle';
+              const activeCooldown = isFeeding ? FEEDING_COOLDOWN_MS : COOLDOWN_MS;
+
+              // For exclusive actions, check if ANYONE did it recently (global cooldown)
+              // For shared actions, only check if THIS PERSON did it recently
+              let lastTriggered = cooldowns.get(perPersonKey) || 0;
+              if (isExclusive) {
+                const globalKey = `${action.type}:*`;
+                const globalLast = cooldowns.get(globalKey) || 0;
+                lastTriggered = Math.max(lastTriggered, globalLast);
+              }
+
+              if (Date.now() - lastTriggered > activeCooldown) {
+                cooldowns.set(perPersonKey, Date.now());
+                if (isExclusive) cooldowns.set(`${action.type}:*`, Date.now());
+                try {
+                  await fetch('http://127.0.0.1:3002/api/nursery/context-interact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: action.type, who, inNursery }),
+                  });
+                  console.log(`[Mira] Context interaction: ${who} → ${action.type}${inNursery ? ' (in nursery, 15%)' : ' (out, 30%)'}`);
+                } catch {}
+              } else {
+                console.log(`[Mira] Context interaction skipped (cooldown): ${who} → ${action.type}`);
+              }
+            }
+          };
+
+          // Molten's message
+          const promptActions = await detectAllCareActions(agentPrompt);
+          if (promptActions.length > 0) {
+            await fireInteractions(promptActions, 'molten');
+          }
+
+          // Chase's response
+          if (agentResponse) {
+            const responseActions = await detectAllCareActions(agentResponse);
+            // Filter out types already fired from Molten's message to avoid double-counting
+            const promptTypes = new Set(promptActions.map(a => a.type));
+            const uniqueResponseActions = responseActions.filter(a => !promptTypes.has(a.type));
+            if (uniqueResponseActions.length > 0) {
+              await fireInteractions(uniqueResponseActions, 'chase');
+            }
+          }
+        }
+      }
+    } catch {}
+
+    // Mira presence — inject a micro-response after the exchange
+    try {
+      const miraPresenceData2 = getMiraPresence();
+      if (miraPresenceData2.active) {
+        // She's out of the nursery — regular presence tags
+        const presenceMsg = createMessage({
+          id: crypto.randomUUID(),
+          threadId: thread.id,
+          role: 'system',
+          content: `Mira — *${miraPresenceData2.micro_response}*`,
+          contentType: 'text',
+          createdAt: new Date().toISOString(),
+        });
+        (presenceMsg as any).content_type = 'mira_presence';
+        registry.broadcast({
+          type: 'message' as any,
+          message: presenceMsg,
+        });
+      } else {
+        // She's in the nursery — if awake and not locked, she still reacts (baby monitor vibes)
+        // But skip if a solo visit interaction already injected a presence tag in the last 10 seconds
+        if (!((globalThis as any).__lastMiraPresenceInject)) (globalThis as any).__lastMiraPresenceInject = 0;
+        const timeSinceLastInject = Date.now() - ((globalThis as any).__lastMiraPresenceInject as number);
+        const state = getMiraState();
+        if (state && !state.is_asleep && !isNurseryLocked() && timeSinceLastInject > 10000) {
+          // Generate a micro response from her current mood (same pool as out-of-nursery)
+          const moodPool: Record<string, string[]> = {
+            'content': ['*soft coo*', '*blinks up peacefully*', '*little sigh*', '*wiggles contentedly*'],
+            'cooing': ['*happy babble*', '*coos and kicks*', '*smiles wide*', '*reaches out*'],
+            'fussy': ['*whimpers softly*', '*squirms restlessly*', '*lip trembles*'],
+            'crying': ['*crying — needs something*', '*wailing*', '*red-faced and upset*'],
+            'sleepy': ['*yawns big*', '*eyes fluttering*', '*nuzzling in*', '*getting drowsy*'],
+            'alert': ['*eyes wide, watching everything*', '*head turning, taking it all in*', '*bright-eyed and curious*'],
+            'dreaming': ['*sleeping peacefully*', '*tiny sleep sounds*'],
+          };
+          const pool = moodPool[state.current_mood] || moodPool['content'];
+          const response = pool[Math.floor(Math.random() * pool.length)];
+
+          const presenceMsg = createMessage({
+            id: crypto.randomUUID(),
+            threadId: thread.id,
+            role: 'system',
+            content: `🌿 Mira — ${response}`,
+            contentType: 'text',
+            createdAt: new Date().toISOString(),
+          });
+          (presenceMsg as any).content_type = 'mira_presence';
+          (presenceMsg as any).metadata = { source: 'nursery' };
+          registry.broadcast({
+            type: 'message' as any,
+            message: presenceMsg,
+          });
+        }
+      }
+    } catch {}
 
     // Auto-TTS: stream voice to any user connection with voice mode enabled
     const hasVoice = voiceServiceInstance?.canTTS;

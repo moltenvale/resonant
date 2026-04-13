@@ -400,8 +400,8 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: var(--bg-secondary);
-    border-right: 1px solid var(--border);
+    background: rgba(147, 112, 168, 0.22);
+    border-right: 1px solid rgba(168, 139, 186, 0.25);
   }
 
   .thread-groups {
@@ -542,6 +542,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    color: #d4a0b0;
   }
 
   .unread-badge {

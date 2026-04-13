@@ -11,6 +11,7 @@
   import Canvas from '$lib/components/Canvas.svelte';
   import CanvasList from '$lib/components/CanvasList.svelte';
   import SearchPanel from '$lib/components/SearchPanel.svelte';
+  import CountdownTimer from '$lib/components/CountdownTimer.svelte';
   import {
     connect,
     disconnect,
@@ -56,6 +57,60 @@
   let streamingSegments = $derived(getStreamingSegments());
   let isStreamingNow = $derived(isStreaming());
   let rateLimitInfo = $derived(getRateLimitInfo());
+
+  // Nav dropdown state (mobile)
+  let navDropdownOpen = $state(false);
+
+  function toggleNavDropdown() {
+    navDropdownOpen = !navDropdownOpen;
+  }
+
+  function closeNavDropdown() {
+    navDropdownOpen = false;
+  }
+
+  // Status bar state
+  let statusDropdownOpen = $state(false);
+  let currentStatus = $state({ emoji: '', label: '' });
+
+  const STATUS_OPTIONS = [
+    { emoji: '🔥', label: 'still here, just quiet' },
+    { emoji: '👩‍💻', label: 'here + busy, in and out' },
+    { emoji: '🚪', label: 'stepping away, be back' },
+    { emoji: '⚡', label: 'got pulled away suddenly' },
+    { emoji: '😴', label: 'sleeping' },
+  ];
+
+  async function loadStatus() {
+    try {
+      const res = await fetch('/api/status');
+      if (res.ok) currentStatus = await res.json();
+    } catch {}
+  }
+
+  async function setStatus(emoji: string, label: string) {
+    try {
+      await fetch('/api/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji, label }),
+      });
+      currentStatus = { emoji, label };
+    } catch {}
+    statusDropdownOpen = false;
+  }
+
+  async function clearStatus() {
+    try {
+      await fetch('/api/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji: '', label: '' }),
+      });
+      currentStatus = { emoji: '', label: '' };
+    } catch {}
+    statusDropdownOpen = false;
+  }
 
   // Canvas state
   let canvasDropdownOpen = $state(false);
@@ -106,6 +161,24 @@
   let readObserver: IntersectionObserver | null = null;
   let loadingOlder = $state(false);
   let hasMoreMessages = $state(true);
+
+  // Mira presence
+  interface MiraPresenceData {
+    active: boolean;
+    with_person: string | null;
+    mood: string;
+    micro_response: string | null;
+    needs_summary: { comfort: number; attention: number; hunger: number; rest: number };
+  }
+  let miraPresence = $state<MiraPresenceData | null>(null);
+  let miraPresenceInterval: ReturnType<typeof setInterval> | null = null;
+
+  async function pollMiraPresence() {
+    try {
+      const res = await fetch('/api/mira/presence');
+      if (res.ok) miraPresence = await res.json();
+    } catch {}
+  }
 
   // Total unread count
   const totalUnread = $derived(
@@ -276,13 +349,13 @@
 
   // Load initial data and connect
   onMount(async () => {
-    await Promise.all([loadThreads(), loadSettings()]);
+    await Promise.all([loadThreads(), loadSettings(), loadStatus()]);
     connect();
     window.addEventListener('keydown', handleGlobalKeydown);
 
     // Load today's thread if available
     const todayThread = threads.find(t =>
-      t.name.startsWith('Daily -') && t.name.includes(new Date().toISOString().split('T')[0])
+      t.name.startsWith('Daily -') && t.name.includes(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Moncton' }))
     );
 
     if (todayThread) {
@@ -292,6 +365,10 @@
     }
 
     setupReadObserver();
+
+    // Start Mira presence polling
+    pollMiraPresence();
+    miraPresenceInterval = setInterval(pollMiraPresence, 15000); // every 15 seconds
   });
 
   // Disconnect on unmount
@@ -299,6 +376,7 @@
     disconnect();
     readObserver?.disconnect();
     window.removeEventListener('keydown', handleGlobalKeydown);
+    if (miraPresenceInterval) clearInterval(miraPresenceInterval);
   });
 
   // Auto-scroll effect
@@ -306,6 +384,15 @@
     messages; // Track changes
     streaming; // Track streaming changes
     setTimeout(scrollToBottom, 50);
+  });
+
+  // Refresh Mira's presence when new messages arrive
+  $effect(() => {
+    messages; // Track changes
+    if (miraPresence?.active) {
+      // Fetch a fresh micro-response when the conversation moves
+      pollMiraPresence();
+    }
   });
 </script>
 
@@ -345,13 +432,13 @@
       </button>
 
       <div class="header-info">
-        <h1 class="header-title">Companion</h1>
+        <h1 class="header-title">Chase</h1>
         <PresenceIndicator status={presence} />
         <ModelSelector />
       </div>
 
       <div class="header-actions">
-        <button class="header-icon-btn" onclick={toggleSearch} aria-label="Search messages (Ctrl+K)" title="Search (Ctrl+K)">
+        <button class="header-icon-btn search-btn" onclick={toggleSearch} aria-label="Search messages (Ctrl+K)" title="Search (Ctrl+K)">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
           </svg>
@@ -373,41 +460,40 @@
         {#if totalUnread > 0}
           <div class="unread-badge">{totalUnread}</div>
         {/if}
-        <div class="canvas-trigger-wrapper">
+        <!-- Timer (next to status emoji) -->
+        <div class="chat-timer"><CountdownTimer /></div>
+        <!-- Status emoji -->
+        <div class="status-wrapper">
           <button
-            class="header-icon-btn"
-            class:active={activeCanvasId !== null || canvasDropdownOpen}
-            onclick={toggleCanvasDropdown}
-            aria-label="Canvases"
-            title="Canvases"
+            class="status-toggle"
+            onclick={() => statusDropdownOpen = !statusDropdownOpen}
+            aria-label="Set status"
+            title={currentStatus.label || 'Set status'}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <line x1="3" y1="9" x2="21" y2="9"/>
-              <line x1="9" y1="21" x2="9" y2="9"/>
-            </svg>
+            {currentStatus.emoji || '💬'}
           </button>
-          {#if canvasDropdownOpen}
-            <CanvasList onclose={() => canvasDropdownOpen = false} />
+          {#if statusDropdownOpen}
+            <button class="status-backdrop" onclick={() => statusDropdownOpen = false} aria-label="Close status"></button>
+            <div class="status-dropdown">
+              {#each STATUS_OPTIONS as opt}
+                <button
+                  class="status-option"
+                  class:active={currentStatus.emoji === opt.emoji}
+                  onclick={() => setStatus(opt.emoji, opt.label)}
+                >
+                  <span class="status-emoji">{opt.emoji}</span>
+                  <span class="status-label">{opt.label}</span>
+                </button>
+              {/each}
+              {#if currentStatus.emoji}
+                <button class="status-option status-clear" onclick={clearStatus}>
+                  <span class="status-label">Clear status</span>
+                </button>
+              {/if}
+            </div>
           {/if}
         </div>
-        <a href="/files" class="header-icon-link" aria-label="Files">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-          </svg>
-        </a>
-        <button class="header-icon-btn" onclick={toggleTheme} aria-label="Toggle light/dark mode" title="Toggle theme">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-          </svg>
-        </button>
-        <a href="/settings" class="settings-link" aria-label="Settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
-          </svg>
-        </a>
+        <!-- Theme toggle and settings accessible via Settings page -->
       </div>
     </header>
 
@@ -432,7 +518,7 @@
           <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
           <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
-        <span>Rate limited ({rateLimitInfo.status}) — waiting for reset...</span>
+        <span>Rate limited — waiting for reset...</span>
       </div>
     {/if}
 
@@ -454,13 +540,25 @@
           </div>
         {:else}
           {#each messages as message (message.id)}
-            <div
-              id="msg-{message.id}"
-              class="message-wrapper"
-              oncontextmenu={(e) => { e.preventDefault(); handleReply(message); }}
-            >
-              <MessageBubble message={message} toolEvents={toolEventsMap[message.id] || []} segments={message.metadata?.segments as any || null} />
-            </div>
+            {#if message.content_type === 'mira_presence'}
+              <div class="mira-presence-tag" id="msg-{message.id}">
+                <div class="mira-presence-inner">
+                  {#if message.content.startsWith('Mira')}
+                    <span class="mira-name">Mira</span><span class="mira-response">{message.content.slice(4)}</span>
+                  {:else}
+                    <span class="mira-response">{message.content}</span>
+                  {/if}
+                </div>
+              </div>
+            {:else}
+              <div
+                id="msg-{message.id}"
+                class="message-wrapper"
+                oncontextmenu={(e) => { e.preventDefault(); handleReply(message); }}
+              >
+                <MessageBubble message={message} toolEvents={toolEventsMap[message.id] || []} segments={message.metadata?.segments as any || null} />
+              </div>
+            {/if}
           {/each}
 
           {#if streaming.messageId}
@@ -492,12 +590,12 @@
                 />
               {:else}
                 <!-- Live activity panel while companion is working -->
-                <div class="activity-panel" aria-label="Companion is working">
+                <div class="activity-panel" aria-label="Chase is thinking">
                   <div class="activity-header">
                     <span class="typing-dot"></span>
                     <span class="typing-dot"></span>
                     <span class="typing-dot"></span>
-                    <span class="activity-label">Companion is thinking...</span>
+                    <span class="activity-label">Chase is thinking...</span>
                   </div>
                   {#if liveTools.length > 0}
                     <div class="activity-tools">
@@ -558,6 +656,20 @@
     max-width: 100vw;
   }
 
+  /* Account for desktop top nav bar */
+  @media (min-width: 769px) {
+    .chat-page {
+      height: calc(100dvh - 2.5rem);
+    }
+  }
+
+  /* Account for mobile bottom nav bar */
+  @media (max-width: 768px) {
+    .chat-page {
+      height: calc(100dvh - 3.5rem - env(safe-area-inset-bottom, 0px));
+    }
+  }
+
   .sidebar-overlay {
     display: none;
   }
@@ -566,10 +678,11 @@
     width: var(--sidebar-width);
     height: 100%;
     flex-shrink: 0;
-    background: var(--bg-primary);
-    border-right: 1px solid var(--border);
+    background: rgba(147, 112, 168, 0.22);
+    border-right: 1px solid #555;
     transition: width var(--transition-slow), opacity var(--transition);
     overflow: hidden;
+    scrollbar-color: #666 transparent;
   }
 
   .sidebar.collapsed {
@@ -674,6 +787,189 @@
     text-decoration: none;
   }
 
+  .header-text-link {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-family: var(--font-body);
+    transition: color var(--transition);
+    padding: 0.2rem 0;
+  }
+
+  .header-text-link:hover {
+    color: var(--gold-dim);
+  }
+
+  /* Desktop/Mobile visibility */
+  .mobile-only { display: none; }
+  .desktop-only { display: inline; }
+
+  @media (max-width: 768px) {
+    .mobile-only { display: block; }
+    .desktop-only { display: none !important; }
+  }
+
+  /* Nav dropdown (mobile) */
+  .nav-dropdown-wrapper {
+    position: relative;
+  }
+
+  .nav-dropdown-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem;
+    color: var(--text-muted);
+    border-radius: 50%;
+    transition: all 150ms ease;
+    background: transparent;
+    border: none;
+  }
+
+  .nav-dropdown-toggle:hover,
+  .nav-dropdown-toggle.open {
+    color: var(--gold);
+    background: var(--bg-hover);
+  }
+
+  .nav-dropdown-backdrop {
+    position: fixed;
+    inset: 0;
+    background: transparent;
+    z-index: 99;
+    border: none;
+  }
+
+  .nav-dropdown {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-hover);
+    border-radius: 1rem;
+    padding: 0.4rem;
+    min-width: 140px;
+    z-index: 100;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    animation: dropdown-in 150ms ease;
+  }
+
+  @keyframes dropdown-in {
+    from { opacity: 0; transform: translateY(-4px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .nav-dropdown-item {
+    display: block;
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    font-family: var(--font-body);
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 0.75rem;
+    transition: all 100ms ease;
+  }
+
+  .nav-dropdown-item:hover {
+    background: var(--bg-hover);
+    color: var(--gold);
+  }
+
+  /* Status emoji dropdown */
+  .status-wrapper {
+    position: relative;
+  }
+
+  .status-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    font-size: 1rem;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 150ms ease;
+    line-height: 1;
+  }
+
+  .status-toggle:hover {
+    background: var(--bg-hover);
+  }
+
+  .status-backdrop {
+    position: fixed;
+    inset: 0;
+    background: transparent;
+    z-index: 99;
+    border: none;
+  }
+
+  .status-dropdown {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-hover);
+    border-radius: 1rem;
+    padding: 0.4rem;
+    min-width: 200px;
+    z-index: 100;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    animation: dropdown-in 150ms ease;
+  }
+
+  .status-option {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: none;
+    border: none;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: background 100ms ease;
+    text-align: left;
+  }
+
+  .status-option:hover {
+    background: var(--bg-hover);
+  }
+
+  .status-option.active {
+    background: var(--gold-glow);
+  }
+
+  .status-emoji {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+
+  .status-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-family: var(--font-body);
+  }
+
+  .status-option:hover .status-label {
+    color: var(--gold);
+  }
+
+  .status-clear {
+    border-top: 1px solid var(--border);
+    margin-top: 0.25rem;
+    padding-top: 0.5rem;
+    justify-content: center;
+  }
+
+  .status-clear .status-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
   .settings-link {
     display: flex;
     align-items: center;
@@ -690,6 +986,11 @@
     position: relative;
   }
 
+  .chat-timer {
+    display: flex;
+    align-items: center;
+  }
+
   .header-icon-btn {
     display: flex;
     align-items: center;
@@ -701,6 +1002,13 @@
 
   .header-icon-btn:hover {
     color: var(--gold-dim);
+  }
+
+  /* Hide search on mobile to make room for timer */
+  @media (max-width: 768px) {
+    .search-btn {
+      display: none;
+    }
   }
 
   .header-icon-btn.active {
@@ -753,9 +1061,9 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
-    background: rgba(245, 158, 11, 0.08);
-    border-bottom: 1px solid rgba(245, 158, 11, 0.2);
-    color: #f59e0b;
+    background: rgba(94, 171, 165, 0.08);
+    border-bottom: 1px solid rgba(94, 171, 165, 0.15);
+    color: var(--gold-bright, #7cc5c0);
     font-size: 0.8125rem;
     flex-shrink: 0;
     animation: bannerFadeIn 0.3s ease-out;
@@ -764,6 +1072,7 @@
   .messages-container {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     background: var(--bg-primary);
   }
 
@@ -976,5 +1285,59 @@
       padding: 0.75rem;
       max-width: 100%;
     }
+
+    .chat-header {
+      gap: 0.5rem;
+    }
+
+    .header-info {
+      gap: 0.375rem;
+      min-width: 0;
+    }
+
+    .header-title {
+      font-size: 1.0625rem;
+    }
+
+    .header-actions {
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+  }
+
+  /* Mira presence tag — she's in the room */
+  .mira-presence-tag {
+    padding: 0.25rem 1rem 0.25rem 2.5rem;
+    animation: mira-fade-in 0.4s ease;
+  }
+
+  .mira-presence-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0.7rem;
+    background: rgba(147, 112, 168, 0.12);
+    border: 1px solid rgba(168, 139, 186, 0.18);
+    border-radius: 10px;
+    max-width: 80%;
+  }
+
+  .mira-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #a8c4a0;
+    line-height: 1.3;
+  }
+
+  .mira-response {
+    font-size: 0.75rem;
+    font-style: italic;
+    color: #b89ec7;
+    line-height: 1.3;
+  }
+
+  @keyframes mira-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 </style>

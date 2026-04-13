@@ -22,7 +22,7 @@
     const diff = now.getTime() - date.getTime();
     if (diff < 3600000) return `${Math.round(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`;
-    return date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
   }
 
   function formatSize(bytes: number): string {

@@ -2,6 +2,7 @@
   import type { Message } from '@resonant/shared';
   import VoiceRecorder from './VoiceRecorder.svelte';
   import VoiceModeToggle from './VoiceModeToggle.svelte';
+  import EmojiPicker from './EmojiPicker.svelte';
 
   interface FileUploadResult {
     fileId: string;
@@ -33,6 +34,22 @@
   let uploadError = $state<string | null>(null);
   let pendingAttachments = $state<FileUploadResult[]>([]);
   let pendingProsody = $state<Record<string, number> | null>(null);
+  let showEmojiPicker = $state(false);
+
+  function insertEmoji(emoji: string) {
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      content = content.substring(0, start) + emoji + content.substring(end);
+      // Set cursor after emoji on next tick
+      requestAnimationFrame(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+        textarea.focus();
+      });
+    } else {
+      content += emoji;
+    }
+  }
 
   // Can send if there's text or pending attachments
   let canSend = $derived(content.trim().length > 0 || pendingAttachments.length > 0);
@@ -68,9 +85,14 @@
     pendingAttachments = pendingAttachments.filter((_, i) => i !== index);
   }
 
+  // Detect mobile/touch device
+  const isMobile = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
   // Handle keyboard
+  // Desktop: Enter sends, Shift+Enter = new line
+  // Mobile: Enter = new line (natural typing), send button handles sending
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
       e.preventDefault();
       handleSend();
     }
@@ -235,6 +257,28 @@
       aria-label="Message input"
     ></textarea>
 
+    <div class="emoji-wrapper">
+      <button
+        class="emoji-toggle"
+        onclick={() => { showEmojiPicker = !showEmojiPicker; }}
+        aria-label="Emoji picker"
+        title="Emoji"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+          <line x1="9" y1="9" x2="9.01" y2="9"/>
+          <line x1="15" y1="9" x2="15.01" y2="9"/>
+        </svg>
+      </button>
+      {#if showEmojiPicker}
+        <EmojiPicker
+          onselect={insertEmoji}
+          onclose={() => { showEmojiPicker = false; }}
+        />
+      {/if}
+    </div>
+
     <VoiceModeToggle />
 
     {#if isStreaming}
@@ -398,8 +442,8 @@
     gap: 0.75rem;
     padding: 0.5rem 0.75rem;
     border-radius: var(--radius-lg, 1.5rem);
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
+    background: rgba(147, 112, 168, 0.22);
+    border: 1px solid rgba(168, 139, 186, 0.25);
     transition: border-color var(--transition);
   }
 
@@ -409,7 +453,7 @@
 
   .attach-button {
     padding: 0.75rem;
-    color: var(--text-muted);
+    color: #7ab648;
     border-radius: var(--radius);
     display: flex;
     align-items: center;
@@ -448,7 +492,7 @@
     border: none;
     border-radius: 0;
     padding: 0.5rem 0.5rem;
-    color: var(--text-primary);
+    color: #d4a0b0;
     font-size: 1rem;
     line-height: 1.6;
     resize: none;
@@ -462,6 +506,26 @@
 
   textarea::placeholder {
     color: var(--text-muted);
+  }
+
+  .emoji-wrapper {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .emoji-toggle {
+    padding: 0.75rem 0.25rem;
+    color: #7ab648;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--transition), background var(--transition);
+  }
+
+  .emoji-toggle:hover {
+    color: var(--gold-dim);
+    background: var(--gold-ember);
   }
 
   .send-button {

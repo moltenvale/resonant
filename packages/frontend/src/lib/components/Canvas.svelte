@@ -19,9 +19,10 @@
   let localTitle = $state('');
   let editMode = $state(true);
   let isDirty = $state(false);
+  let prevCanvasId = $state<string | null>(null);
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Sync local state when canvas changes
+  // Sync local state when canvas changes (only when not dirty)
   $effect(() => {
     if (canvas && !isDirty) {
       localContent = canvas.content;
@@ -29,14 +30,16 @@
     }
   });
 
-  // Reset local state when switching canvases
+  // Reset local state when switching to a different canvas
   $effect(() => {
-    activeCanvasId; // track
-    isDirty = false;
-    editMode = true;
-    if (canvas) {
-      localContent = canvas.content;
-      localTitle = canvas.title;
+    if (activeCanvasId !== prevCanvasId) {
+      prevCanvasId = activeCanvasId;
+      isDirty = false;
+      editMode = true;
+      if (canvas) {
+        localContent = canvas.content;
+        localTitle = canvas.title;
+      }
     }
   });
 
@@ -146,7 +149,7 @@
 
     <div class="canvas-body">
       {#if (canvas.content_type === 'markdown' || canvas.content_type === 'html') && !editMode}
-        <div class="canvas-preview markdown-body">
+        <div class="canvas-preview">
           {#if canvas.content_type === 'html'}
             <iframe class="canvas-iframe" srcdoc={localContent} sandbox="allow-same-origin" title={canvas.title}></iframe>
           {:else}
@@ -157,7 +160,7 @@
         <textarea
           class="canvas-editor"
           class:mono={canvas.content_type === 'code' || canvas.content_type === 'html'}
-          value={localContent}
+          bind:value={localContent}
           oninput={handleContentInput}
           placeholder={canvas.content_type === 'code' ? 'Write code...' : canvas.content_type === 'html' ? 'Write HTML...' : 'Start writing...'}
           spellcheck={canvas.content_type !== 'code' && canvas.content_type !== 'html'}
@@ -297,6 +300,68 @@
     line-height: 1.6;
   }
 
+  .canvas-preview :global(p) { margin: 0.5rem 0; }
+  .canvas-preview :global(p:first-child) { margin-top: 0; }
+  .canvas-preview :global(p:last-child) { margin-bottom: 0; }
+
+  .canvas-preview :global(code) {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+  }
+
+  .canvas-preview :global(pre) {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.75rem;
+    border-radius: var(--radius-sm);
+    overflow-x: auto;
+    margin: 0.5rem 0;
+  }
+
+  .canvas-preview :global(pre code) { background: none; padding: 0; }
+
+  .canvas-preview :global(a) {
+    color: var(--gold);
+    text-decoration: underline;
+    text-decoration-color: var(--gold-dim);
+  }
+
+  .canvas-preview :global(strong) { font-weight: 600; }
+  .canvas-preview :global(em) { font-style: italic; }
+
+  .canvas-preview :global(ul),
+  .canvas-preview :global(ol) {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+  }
+
+  .canvas-preview :global(blockquote) {
+    border-left: 2px solid var(--gold-dim);
+    padding-left: 1rem;
+    margin: 0.5rem 0;
+    color: var(--text-secondary);
+  }
+
+  .canvas-preview :global(h1),
+  .canvas-preview :global(h2),
+  .canvas-preview :global(h3) {
+    color: var(--gold);
+    font-family: var(--font-heading);
+    margin: 1rem 0 0.5rem;
+  }
+
+  .canvas-preview :global(h1) { font-size: 1.5rem; }
+  .canvas-preview :global(h2) { font-size: 1.25rem; }
+  .canvas-preview :global(h3) { font-size: 1.1rem; }
+
+  .canvas-preview :global(hr) {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 1rem 0;
+  }
+
   .canvas-iframe {
     width: 100%;
     height: 100%;
@@ -322,8 +387,31 @@
       inset: 0;
       width: 100%;
       max-width: 100%;
+      min-width: unset;
       z-index: 200;
       animation: canvasSlideIn 0.25s ease-out;
+      padding-top: env(safe-area-inset-top, 0px);
+    }
+
+    .canvas-header {
+      padding: 0.5rem 0.75rem;
+    }
+
+    .canvas-title-input {
+      font-size: 0.9375rem;
+    }
+
+    .canvas-editor {
+      padding: 0.75rem;
+      font-size: 1rem;
+    }
+
+    .canvas-preview {
+      padding: 0.75rem;
+    }
+
+    .canvas-btn {
+      padding: 0.5rem;
     }
   }
 

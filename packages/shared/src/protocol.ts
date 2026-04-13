@@ -77,7 +77,12 @@ export type ServerMessage =
   | { type: 'rate_limit'; status: string; resetsAt?: number; rateLimitType?: string; utilization?: number }
   | { type: 'tool_progress'; toolId: string; toolName: string; elapsed: number }
   | { type: 'mcp_status_updated'; servers: import('./types.js').McpServerInfo[] }
-  | { type: 'rewind_result'; canRewind: boolean; filesChanged?: string[]; insertions?: number; deletions?: number; error?: string };
+  | { type: 'rewind_result'; canRewind: boolean; filesChanged?: string[]; insertions?: number; deletions?: number; error?: string }
+  | { type: 'countdown_started'; timer: any }
+  | { type: 'countdown_completed'; timer: any }
+  | { type: 'countdown_warning'; timer: any }
+  | { type: 'countdown_cancelled'; timerId: string }
+  | { type: 'metacognitive_scan'; score: number; weatherNote: string; thinkingScore: number; outputScore: number; drift: string; sessionAverage: number; nudge: string | null; routine: string };
 
 // --- Message type guards ---
 

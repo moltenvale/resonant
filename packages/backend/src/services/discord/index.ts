@@ -128,14 +128,17 @@ export class DiscordService {
     const { firstMessage, lastMessage, channelId, userId } = batch;
     const isOwner = userId === DISCORD_CONFIG.ownerUserId;
 
-    // Defer non-owner Discord messages when owner is actively chatting on web UI
-    // This prevents Discord conversations from interrupting the owner's flow
-    if (!isOwner) {
-      const ownerActiveMinutes = this.registry.minutesSinceLastUserActivity();
+    // Defer non-owner DM messages when owner is actively chatting on web UI
+    // This prevents DM conversations from interrupting the owner's flow
+    // Guild messages (community server tags) are NOT deferred — respond immediately
+    if (!isOwner && !batch.guildId) {
+      // Uses web-specific activity — Telegram activity should NOT trigger deferral
+      const ownerActiveMinutes = this.registry.minutesSinceLastUserWebActivity();
       if (ownerActiveMinutes < getDiscordConfig().ownerActiveThresholdMin) {
         this.deferredBatches.push({ batch, queuedAt: Date.now() });
+        lastMessage.react('\u23F3').catch(() => {});
         this.stats.deferred++;
-        console.log(`[Discord] Deferred message from ${firstMessage.author.username} (owner active ${ownerActiveMinutes.toFixed(1)}m ago, ${this.deferredBatches.length} in queue)`);
+        console.log(`[Discord] Deferred DM from ${firstMessage.author.username} (owner active ${ownerActiveMinutes.toFixed(1)}m ago, ${this.deferredBatches.length} in queue)`);
         return;
       }
     }
@@ -154,6 +157,7 @@ export class DiscordService {
     }
 
     this.processing.add(key);
+    let typingInterval: ReturnType<typeof setInterval> | null = null;
 
     // Track activity for relational field context
     recentActivity.set(userId, {
@@ -178,14 +182,19 @@ export class DiscordService {
         return;
       }
 
-      // Touch owner's activity if they're the sender
+      // Touch owner's activity if they're the sender (non-web — Discord activity shouldn't defer DMs)
       if (isOwner) {
-        this.registry.touchUserActivity();
+        this.registry.touchUserActivityNonWeb();
       }
 
       // Show typing indicator
       if ('sendTyping' in lastMessage.channel) {
         await lastMessage.channel.sendTyping();
+        typingInterval = setInterval(() => {
+          if ('sendTyping' in lastMessage.channel) {
+            (lastMessage.channel as TextChannel).sendTyping().catch(() => {});
+          }
+        }, 8000);
       }
 
       console.log(`[Discord] Processing from ${firstMessage.author.username} in ${channelId}`);
@@ -272,11 +281,22 @@ export class DiscordService {
       this.registry.broadcast({ type: 'message', message: incomingMsg });
 
       // Build platform context (rules + channel history)
+      const platformHeader = batch.guildId
+        ? `=== PLATFORM: DISCORD ===\nResponding in #${(this.client.channels.cache.get(channelId) as TextChannel)?.name || channelId} on ${this.client.guilds.cache.get(batch.guildId)?.name || batch.guildId}.`
+        : `=== PLATFORM: DISCORD ===\nResponding in DM with ${firstMessage.author.username}.`;
+      const platformGuidance = [
+        platformHeader,
+        'Discord formatting: **bold**, *italic*, `code`, ```codeblocks```, > quotes, ||spoilers||.',
+        'Max message length: 2000 chars (responses auto-split at 1900).',
+        'Replying to the last message in this batch.',
+        "Keep responses appropriate to the platform — not as terse as Telegram, but don't write essays.",
+      ].join('\n');
+
       const rulesContext = buildRulesContext(userId, channelId, batch.guildId);
       const historyContext = batch.channelHistory
         ? `\n\n=== RECENT CHANNEL HISTORY (last 25 messages) ===\n${batch.channelHistory}`
         : '';
-      const platformContext = `${rulesContext}${historyContext}`;
+      const platformContext = `${platformGuidance}\n\n${rulesContext}${historyContext}`;
 
       this.stats.messagesProcessed++;
 
@@ -314,6 +334,7 @@ export class DiscordService {
       console.error('[Discord] Handler error:', error);
       this.stats.errors++;
     } finally {
+      if (typingInterval) clearInterval(typingInterval);
       this.processing.delete(key);
     }
   }
@@ -322,7 +343,8 @@ export class DiscordService {
     if (this.deferredBatches.length === 0) return;
 
     const config = getDiscordConfig();
-    const ownerActiveMinutes = this.registry.minutesSinceLastUserActivity();
+    // Uses web-specific activity — Telegram activity should NOT trigger deferral
+    const ownerActiveMinutes = this.registry.minutesSinceLastUserWebActivity();
     if (ownerActiveMinutes < config.ownerActiveThresholdMin) return; // Owner still active — keep holding
 
     // Prune expired batches
@@ -342,7 +364,8 @@ export class DiscordService {
     // Process one at a time to avoid flooding
     while (this.deferredBatches.length > 0) {
       // Re-check owner's activity before each batch — stop draining if they come back
-      if (this.registry.minutesSinceLastUserActivity() < config.ownerActiveThresholdMin) {
+      // Uses web-specific activity — Telegram activity should NOT trigger deferral
+      if (this.registry.minutesSinceLastUserWebActivity() < config.ownerActiveThresholdMin) {
         console.log(`[Discord] Owner returned — pausing drain (${this.deferredBatches.length} remaining)`);
         break;
       }

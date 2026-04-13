@@ -52,7 +52,7 @@
 <style>
   .voice-mode-toggle {
     padding: 0.75rem;
-    color: var(--text-muted);
+    color: #7ab648;
     border-radius: var(--radius);
     display: flex;
     align-items: center;

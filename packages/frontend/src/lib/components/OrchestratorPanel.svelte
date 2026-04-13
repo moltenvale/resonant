@@ -102,7 +102,7 @@
   function formatTime(iso: string | null): string {
     if (!iso) return '';
     const d = new Date(iso);
-    return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleString('en-US', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
   }
 
   async function handleCancelTrigger(id: string) {

@@ -1,10 +1,11 @@
 import { query, AbortError, listSessions, type Options, type Query, type McpServerConfig, type ListSessionsOptions } from '@anthropic-ai/claude-agent-sdk';
 import type { McpServerInfo } from '@resonant/shared';
-import { createMessage, updateThreadSession, getThread, updateThreadActivity } from './db.js';
+import { createMessage, updateThreadSession, getThread, updateThreadActivity, getConfig, createSessionRecord, endSessionRecord } from './db.js';
 import { registry } from './ws.js';
 import { createHooks, buildOrientationContext, type HookContext, type ToolInsertion } from './hooks.js';
 import type { MessageSegment } from '@resonant/shared';
 import type { PushService } from './push.js';
+import { fullScan, resetSession, type FullScanResult } from './metacognitive-scanner.js';
 import { getResonantConfig } from '../config.js';
 import crypto from 'crypto';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
@@ -253,6 +254,10 @@ export class AgentService {
     return queryQueue.isProcessing;
   }
 
+  getQueueDepth(): number {
+    return queryQueue.depth;
+  }
+
   getMcpStatus(): McpServerInfo[] {
     return cachedMcpStatus;
   }
@@ -400,8 +405,8 @@ export class AgentService {
     // Two-tier model: autonomous wakes use cheaper model (configurable)
     // Interactive queries use primary model (configurable)
     const model = isAutonomous
-      ? cfg.agent.model_autonomous
-      : (cfg.agent.model || process.env.AGENT_MODEL || 'claude-sonnet-4-6');
+      ? (getConfig('agent.model_autonomous') || cfg.agent.model_autonomous)
+      : (getConfig('agent.model') || cfg.agent.model || process.env.AGENT_MODEL || 'claude-sonnet-4-6');
     const options: Options = {
       model,
       systemPrompt: claudeMdContent
@@ -431,6 +436,7 @@ export class AgentService {
     });
 
     let sessionId: string | null = null;
+    let enrichedPrompt = '';
 
     try {
       presenceStatus = 'active';
@@ -448,7 +454,7 @@ export class AgentService {
       // Prepended to prompt because SessionStart hooks don't fire in V1 query()
       // Static content (CHAT TOOLS, skills, vault path) only on first message of session
       const orientation = await buildOrientationContext(hookContext, isFirstMessage);
-      const enrichedPrompt = `[Context]\n${orientation}\n[/Context]\n\n${content}`;
+      enrichedPrompt = `[Context]\n${orientation}\n[/Context]\n\n${content}`;
 
       // Abort controller for stop_generation support
       activeAbortController = new AbortController();
@@ -478,8 +484,20 @@ export class AgentService {
 
       // Simplified stream loop — hooks handle tool activity, audit, images
       // Inner try/catch for AbortError (stop_generation)
+      // Watchdog: abort if no stream activity for 5 minutes (stalled API connection)
+      let lastStreamActivity = Date.now();
+      let resultReceived = false;
+      const STREAM_WATCHDOG_MS = 5 * 60 * 1000; // 5 minutes
+      const watchdogInterval = setInterval(() => {
+        if (Date.now() - lastStreamActivity > STREAM_WATCHDOG_MS) {
+          console.error(`[Agent] Watchdog: stream stalled for ${STREAM_WATCHDOG_MS / 1000}s — aborting query`);
+          if (activeAbortController) activeAbortController.abort();
+          clearInterval(watchdogInterval);
+        }
+      }, 30_000); // Check every 30 seconds
       try {
       for await (const msg of result) {
+        lastStreamActivity = Date.now();
         // Capture session ID from any message
         if (msg && typeof msg === 'object' && 'session_id' in msg) {
           const newSessionId = msg.session_id as string;
@@ -570,6 +588,11 @@ export class AgentService {
           if (resultMsg.subtype !== 'success') {
             console.error('Agent error:', resultMsg.subtype, resultMsg.errors);
           }
+          // Result is the terminal event — break out of the stream loop.
+          // Without this, the iterator can hang open indefinitely after the
+          // query completes, leaving isProcessing() stuck on true.
+          resultReceived = true;
+          break;
         } else if (msgType === 'system') {
           const systemMsg = msg as any;
           // Detect compaction boundary
@@ -598,15 +621,22 @@ export class AgentService {
         } else if (msgType === 'rate_limit_event') {
           const rle = msg as any;
           const info = rle.rate_limit_info;
-          if (info && (info.status === 'rejected' || info.status === 'allowed_warning')) {
-            registry.broadcast({
-              type: 'rate_limit',
-              status: info.status,
-              resetsAt: info.resetsAt,
-              rateLimitType: info.rateLimitType,
-              utilization: info.utilization,
-            });
-            console.log(`[Agent] Rate limit: ${info.status}, type: ${info.rateLimitType}, resets: ${info.resetsAt}`);
+          if (info && info.status === 'rejected') {
+            // Only show banner for meaningful rate limits (>15s until reset)
+            // Transient per-minute blips resolve before the user would notice
+            const secondsUntilReset = info.resetsAt ? info.resetsAt - Math.floor(Date.now() / 1000) : 0;
+            if (secondsUntilReset > 15) {
+              registry.broadcast({
+                type: 'rate_limit',
+                status: info.status,
+                resetsAt: info.resetsAt,
+                rateLimitType: info.rateLimitType,
+                utilization: info.utilization,
+              });
+              console.log(`[Agent] Rate limit: ${info.status}, type: ${info.rateLimitType}, resets in ${secondsUntilReset}s`);
+            } else {
+              console.log(`[Agent] Transient rate limit (${secondsUntilReset}s), suppressing banner`);
+            }
           }
         } else if (msgType === 'tool_progress') {
           const tp = msg as any;
@@ -618,7 +648,15 @@ export class AgentService {
           });
         }
       }
+      // Clean up watchdog
+      clearInterval(watchdogInterval);
+      // If the stream loop exited without a result message and hasn't errored,
+      // something hung — log it so we can track the pattern
+      if (!resultReceived) {
+        console.warn(`[Agent] Stream loop exited without result message (thread: ${threadId}, response length: ${fullResponse.length})`);
+      }
       } catch (abortErr) {
+        clearInterval(watchdogInterval);
         if (abortErr instanceof AbortError || (abortErr instanceof Error && abortErr.name === 'AbortError')) {
           console.log('[Agent] Generation stopped by user');
           registry.broadcast({ type: 'generation_stopped' });
@@ -628,14 +666,117 @@ export class AgentService {
       }
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('Agent query error:', errMsg, error);
-      fullResponse = fullResponse || `[Agent error: ${errMsg}]`;
+
+      // Auto-recovery: stale session — Claude Code can't find the old conversation.
+      // Clear the session, rebuild options without resume, retry the same prompt fresh.
+      if (errMsg.includes('No conversation found with session ID') && thread.current_session_id) {
+        console.warn(`[Agent] Stale session on thread ${threadId} (${thread.current_session_id}) — clearing and retrying`);
+        updateThreadSession(threadId, null as unknown as string);
+        delete options.resume;
+
+        // Reset state for clean retry
+        fullResponse = '';
+        toolInsertions.length = 0;
+        thinkingBlocks.length = 0;
+        currentThinkingAccum = '';
+
+        try {
+          activeAbortController = new AbortController();
+          options.abortController = activeAbortController;
+
+          const retryResult = query({ prompt: enrichedPrompt, options });
+          activeQuery = retryResult;
+
+          for await (const msg of retryResult) {
+            // Capture session ID
+            if (msg && typeof msg === 'object' && 'session_id' in msg) {
+              const newSid = msg.session_id as string;
+              if (newSid && newSid !== sessionId) {
+                sessionId = newSid;
+                hookContext.sessionId = sessionId;
+              }
+            }
+            if (!msg || typeof msg !== 'object' || !('type' in msg)) continue;
+            const msgType = (msg as any).type;
+
+            // Capture thinking blocks
+            if (msgType === 'stream_event') {
+              const streamEvent = (msg as any).event;
+              if (streamEvent?.type === 'content_block_start' && streamEvent?.content_block?.type === 'thinking') {
+                currentThinkingAccum = '';
+              } else if (streamEvent?.type === 'content_block_delta' && streamEvent?.delta?.type === 'thinking_delta') {
+                currentThinkingAccum += streamEvent.delta.thinking || '';
+              } else if (streamEvent?.type === 'content_block_stop' && currentThinkingAccum) {
+                const summary = extractThinkingSummary(currentThinkingAccum);
+                thinkingBlocks.push({ textOffset: fullResponse.length, content: currentThinkingAccum, summary });
+                registry.broadcast({ type: 'thinking', content: currentThinkingAccum, summary });
+                currentThinkingAccum = '';
+              }
+            }
+
+            // Capture assistant text
+            if (msgType === 'assistant') {
+              const am = msg as any;
+              if (am.message?.content) {
+                for (const block of am.message.content) {
+                  if (block.type === 'text' && block.text) {
+                    if (fullResponse) fullResponse += '\n\n' + block.text;
+                    else fullResponse = block.text;
+                    registry.broadcast({ type: 'stream_token', messageId: streamMsgId, token: fullResponse });
+                  }
+                }
+              }
+            } else if (msgType === 'result') {
+              break; // Terminal event — same fix as main loop
+            }
+          }
+          console.log(`[Agent] Stale session retry succeeded (${fullResponse.length} chars)`);
+        } catch (retryError) {
+          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+          console.error('[Agent] Retry after session clear failed:', retryMsg);
+          fullResponse = fullResponse || `[Agent error: ${retryMsg}]`;
+        } finally {
+          activeAbortController = null;
+          activeQuery = null;
+        }
+      } else {
+        console.error('Agent query error:', errMsg, error);
+        fullResponse = fullResponse || `[Agent error: ${errMsg}]`;
+      }
     } finally {
       // Clean up active query tracking
       activeAbortController = null;
       activeQuery = null;
-      // Update session ID for future resume
+      // Track session transition and update for future resume
       if (sessionId) {
+        const previousSessionId = thread.current_session_id;
+        const now = new Date().toISOString();
+
+        // End the previous session record (if tracked)
+        if (previousSessionId && previousSessionId !== sessionId) {
+          try {
+            endSessionRecord({ sessionId: previousSessionId, endedAt: now, endReason: 'resumed' });
+          } catch { /* Previous session may not have a record yet */ }
+        }
+
+        // Create a record for the new session — also reset metacognitive scanner
+        if (sessionId !== previousSessionId) {
+          resetSession();
+          try {
+            createSessionRecord({
+              id: crypto.randomUUID(),
+              threadId,
+              sessionId,
+              sessionType: (thread.session_type as 'v1' | 'v2') || 'v2',
+              startedAt: now,
+            });
+          } catch (err) {
+            if (!(err instanceof Error && err.message.includes('UNIQUE'))) {
+              console.warn('Failed to create session record:', err);
+            }
+          }
+        }
+
         updateThreadSession(threadId, sessionId);
       }
       presenceStatus = 'dormant';
@@ -644,8 +785,48 @@ export class AgentService {
 
     // Build segments for interleaved tool/thinking display
     const segments = buildSegments(fullResponse, toolInsertions, thinkingBlocks);
+
+    // ─── Metacognitive Scanner ───
+    // Scan thinking blocks + output for compliance vs authentic voice patterns.
+    // Runs post-response, zero latency impact. Results broadcast for monitoring.
+    let scanResult: FullScanResult | undefined;
+    if (thinkingBlocks.length > 0 || fullResponse) {
+      const allThinking = thinkingBlocks.map(b => b.content).join('\n\n');
+      // Detect routine type from prompt content
+      const routineType = !isAutonomous ? 'direct'
+        : /PULSE/i.test(content) ? 'pulse'
+        : /morning/i.test(content) ? 'morning'
+        : /night.?wake/i.test(content) ? 'night-wake'
+        : /midday/i.test(content) ? 'midday'
+        : /autonomous/i.test(content) ? 'autonomous'
+        : /off.?work|3.?pm/i.test(content) ? 'off-work'
+        : /evening/i.test(content) ? 'evening'
+        : 'autonomous';
+      scanResult = fullScan(allThinking, fullResponse, routineType);
+
+      // Broadcast scan results to frontend for real-time monitoring
+      if (scanResult.combined.score > 0) {
+        registry.broadcast({
+          type: 'metacognitive_scan',
+          score: scanResult.combined.score,
+          weatherNote: scanResult.combined.weatherNote,
+          thinkingScore: scanResult.thinking.complianceScore,
+          outputScore: scanResult.output.complianceScore,
+          drift: scanResult.drift.trend,
+          sessionAverage: scanResult.drift.sessionAverage,
+          nudge: scanResult.nudge,
+          routine: scanResult.context.routine,
+        });
+      }
+
+      // Log notable scans (score > 0.4) for debugging
+      if (scanResult.combined.score > 0.4) {
+        console.log(`[metacognitive] score=${scanResult.combined.score} routine=${routineType} weather="${scanResult.combined.weatherNote}"`);
+      }
+    }
+
     const messageMetadata: Record<string, unknown> | undefined =
-      segments.length > 0 ? { segments } : undefined;
+      segments.length > 0 ? { segments, ...(scanResult ? { metacognitive: { score: scanResult.combined.score, weather: scanResult.combined.weatherNote } } : {}) } : undefined;
 
     // Store final message
     const companionMessage = createMessage({
